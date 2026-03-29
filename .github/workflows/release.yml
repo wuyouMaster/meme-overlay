@@ -98,13 +98,20 @@ jobs:
           # Leave unset for unsigned (ad-hoc) builds.
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
-      # Copy the bare binary under a platform-qualified name so all three
-      # platforms can upload without filename collisions.
+      # Copy binaries under platform-qualified names to avoid upload conflicts.
       - name: Rename client binary
         shell: bash
         run: |
           SRC="src-tauri/target/${{ matrix.rust-target }}/release/meme-overlay${{ matrix.binary-ext }}"
           cp "$SRC" "meme-overlay-${{ matrix.rust-target }}${{ matrix.binary-ext }}"
+
+      # On Windows, also rename the thin server-launcher binary.
+      - name: Rename server-launcher binary (Windows only)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          SRC="src-tauri/target/${{ matrix.rust-target }}/release/meme-overlay-server${{ matrix.binary-ext }}"
+          cp "$SRC" "meme-overlay-server-${{ matrix.rust-target }}${{ matrix.binary-ext }}"
 
       # macOS: upload the CLI client binary + the server-mode DMG.
       # (The raw Tauri-generated DMG is not uploaded; it blocks on stdin and
@@ -120,7 +127,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Windows: upload the CLI client binary + the MSI installer.
+      # Windows: upload both binaries + the MSI installer.
+      # Users place meme-overlay.exe and meme-overlay-server.exe in the same
+      # directory; double-clicking meme-overlay-server.exe opens the settings UI.
       - name: Upload artifacts (Windows)
         if: runner.os == 'Windows'
         uses: softprops/action-gh-release@v2
@@ -128,6 +137,7 @@ jobs:
           draft: true
           files: |
             meme-overlay-${{ matrix.rust-target }}${{ matrix.binary-ext }}
+            meme-overlay-server-${{ matrix.rust-target }}${{ matrix.binary-ext }}
             src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -172,8 +182,12 @@ jobs:
 
             | File | Description |
             |---|---|
-            | `meme-overlay-x86_64-pc-windows-msvc.exe` | CLI client binary |
+            | `meme-overlay-x86_64-pc-windows-msvc.exe` | CLI client binary (used by plugins) |
+            | `meme-overlay-server-x86_64-pc-windows-msvc.exe` | Double-click to open Settings UI |
             | `.msi` | Windows installer |
+
+            Place both `.exe` files in the same directory.  The server launcher finds
+            `meme-overlay.exe` next to itself and starts it with `--mode server`.
 
             ## How the two macOS artifacts relate
 

@@ -3,6 +3,18 @@ name = "meme-overlay"
 version = "0.1.0"
 edition = "2021"
 
+# Main Tauri app — client binary (overlay / stdin mode by default).
+[[bin]]
+name = "meme-overlay"
+path = "src/main.rs"
+
+# Thin launcher for Windows: double-clicking this opens the settings UI
+# by delegating to the real binary with --mode server.
+# On macOS the same effect is achieved via the .app launcher shell script.
+[[bin]]
+name = "meme-overlay-server"
+path = "src/server_main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

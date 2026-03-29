@@ -75,7 +75,11 @@ server-dmg:
 	   "$$APP_PATH" \
 	   "meme-overlay-server-$(RUST_TARGET).dmg" \
 	   "$(APPLE_SIGNING_IDENTITY)"
-	@echo "Done: meme-overlay-server-$(RUST_TARGET).dmg"
+	@cp "src-tauri/target/$(RUST_TARGET)/release/meme-overlay" \
+	    "meme-overlay-$(RUST_TARGET)"
+	@echo "Done:"
+	@echo "  meme-overlay-$(RUST_TARGET)              (client binary)"
+	@echo "  meme-overlay-server-$(RUST_TARGET).dmg   (server DMG)"
 
 clean:
 	cd src-tauri && cargo clean
