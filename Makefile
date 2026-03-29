@@ -1,7 +1,15 @@
-.PHONY: build build-dev dev check check-ts check-rust install clean help
+.PHONY: build build-dev dev check check-ts check-rust install server-dmg clean help
 
 PLATFORM ?= $(shell uname -s | tr '[:upper:]' '[:lower:]')
 ARCH ?= $(shell uname -m)
+
+# Rust target triple inferred from the current machine (macOS only).
+# Override with: make server-dmg RUST_TARGET=x86_64-apple-darwin
+ifeq ($(ARCH),arm64)
+  RUST_TARGET ?= aarch64-apple-darwin
+else
+  RUST_TARGET ?= x86_64-apple-darwin
+endif
 
 help:
 	@echo "opencode-overlay build targets:"
@@ -11,6 +19,7 @@ help:
 	@echo "  make dev            Run in dev mode"
 	@echo "  make check          Type-check all code"
 	@echo "  make install        Install binary to ~/.config/meme-overlay/"
+	@echo "  make server-dmg     Build release, then create server-mode DMG (macOS)"
 	@echo "  make clean          Clean build artifacts"
 	@echo ""
 	@echo "Cross-platform:"
@@ -42,6 +51,31 @@ install: build
 	@mkdir -p ~/.config/meme-overlay/animations
 	@cp src-tauri/target/release/meme-overlay ~/.config/meme-overlay/bin/
 	@echo "Installed binary to ~/.config/meme-overlay/bin/meme-overlay"
+
+# Build the release binary + app bundle, then wrap it into a server-mode DMG.
+# The DMG's .app uses a shell launcher (launch-server.sh) as CFBundleExecutable
+# so double-clicking opens the Settings window (--mode server) directly.
+#
+# We always pass --target explicitly so that Tauri places the output under
+# src-tauri/target/<triple>/release/… instead of src-tauri/target/release/….
+#
+# Optional: set APPLE_SIGNING_IDENTITY to codesign the bundle, e.g.:
+#   make server-dmg APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+server-dmg:
+	@echo "Building release for $(RUST_TARGET)..."
+	npx tauri build --target $(RUST_TARGET)
+	@echo "Creating server-mode DMG..."
+	@chmod +x scripts/make-server-dmg.sh
+	@APP_PATH="src-tauri/target/$(RUST_TARGET)/release/bundle/macos/meme-overlay.app"; \
+	 if [ ! -d "$$APP_PATH" ]; then \
+	   echo "Error: .app not found at $$APP_PATH"; \
+	   exit 1; \
+	 fi; \
+	 ./scripts/make-server-dmg.sh \
+	   "$$APP_PATH" \
+	   "meme-overlay-server-$(RUST_TARGET).dmg" \
+	   "$(APPLE_SIGNING_IDENTITY)"
+	@echo "Done: meme-overlay-server-$(RUST_TARGET).dmg"
 
 clean:
 	cd src-tauri && cargo clean

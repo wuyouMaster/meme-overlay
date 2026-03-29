@@ -20,21 +20,22 @@ jobs:
             rust-target: aarch64-apple-darwin
             tauri-args: --target aarch64-apple-darwin
             binary-ext: ""
-            bundle-glob: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            # Path to the .app bundle produced by `tauri build`
+            app-path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/meme-overlay.app
 
           - name: macOS-x86_64
             os: macos-13
             rust-target: x86_64-apple-darwin
             tauri-args: --target x86_64-apple-darwin
             binary-ext: ""
-            bundle-glob: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            app-path: src-tauri/target/x86_64-apple-darwin/release/bundle/macos/meme-overlay.app
 
           - name: Windows-x86_64
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
             tauri-args: --target x86_64-pc-windows-msvc
             binary-ext: ".exe"
-            bundle-glob: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            app-path: ""
 
     env:
       BINARY_NAME: meme-overlay
@@ -80,19 +81,54 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Rename binary (avoid filename conflicts across platforms)
+      # Post-process the Tauri .app bundle: inject a launcher shell script as
+      # CFBundleExecutable so that double-clicking opens the settings/server UI
+      # (--mode server) rather than blocking on stdin in overlay mode.
+      - name: Create server-mode DMG (macOS only)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          chmod +x scripts/make-server-dmg.sh
+          ./scripts/make-server-dmg.sh \
+            "${{ matrix.app-path }}" \
+            "meme-overlay-server-${{ matrix.rust-target }}.dmg" \
+            "${APPLE_SIGNING_IDENTITY:-}"
+        env:
+          # Set this secret in your repo to enable codesigning.
+          # Leave unset for unsigned (ad-hoc) builds.
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+
+      # Copy the bare binary under a platform-qualified name so all three
+      # platforms can upload without filename collisions.
+      - name: Rename client binary
         shell: bash
         run: |
           SRC="src-tauri/target/${{ matrix.rust-target }}/release/meme-overlay${{ matrix.binary-ext }}"
           cp "$SRC" "meme-overlay-${{ matrix.rust-target }}${{ matrix.binary-ext }}"
 
-      - name: Upload to GitHub Release
+      # macOS: upload the CLI client binary + the server-mode DMG.
+      # (The raw Tauri-generated DMG is not uploaded; it blocks on stdin and
+      # is not useful to end-users as a standalone clickable app.)
+      - name: Upload artifacts (macOS)
+        if: runner.os == 'macOS'
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           files: |
             meme-overlay-${{ matrix.rust-target }}${{ matrix.binary-ext }}
-            ${{ matrix.bundle-glob }}
+            meme-overlay-server-${{ matrix.rust-target }}.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Windows: upload the CLI client binary + the MSI installer.
+      - name: Upload artifacts (Windows)
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            meme-overlay-${{ matrix.rust-target }}${{ matrix.binary-ext }}
+            src-tauri/target/${{ matrix.rust-target }}/release/bundle/msi/*.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -105,23 +141,45 @@ jobs:
         with:
           draft: false
           body: |
-            ## Download
+            ## Artifacts
 
-            | Platform | Binary | Installer |
-            |----------|--------|-----------|
-            | macOS Apple Silicon | `meme-overlay-aarch64-apple-darwin` | `.dmg` |
-            | macOS Intel | `meme-overlay-x86_64-apple-darwin` | `.dmg` |
-            | Windows x64 | `meme-overlay-x86_64-pc-windows-msvc.exe` | `.msi` |
+            ### macOS — Client binary (CLI plugin use)
 
-            ## Install
+            Used by the opencode / Claude Code plugin.  Place it on `$PATH` and the
+            plugin will call it automatically (defaults to overlay / stdin mode).
 
-            Place the binary at `~/.config/meme-overlay/bin/meme-overlay` and make it executable:
+            | Architecture | File |
+            |---|---|
+            | Apple Silicon | `meme-overlay-aarch64-apple-darwin` |
+            | Intel | `meme-overlay-x86_64-apple-darwin` |
+
             ```bash
-            chmod +x ~/.config/meme-overlay/bin/meme-overlay
+            # Example install
+            install -m 755 meme-overlay-aarch64-apple-darwin ~/.local/bin/meme-overlay
             ```
 
-            **Modes:**
-            - Overlay (launched by plugin): default
-            - Settings UI: `meme-overlay --mode server`
+            ### macOS — Server DMG (double-click to open Settings)
+
+            A standard `.app` bundle that launches the same binary with `--mode server`,
+            opening the Settings / animation-management UI immediately on startup.
+
+            | Architecture | File |
+            |---|---|
+            | Apple Silicon | `meme-overlay-server-aarch64-apple-darwin.dmg` |
+            | Intel | `meme-overlay-server-x86_64-apple-darwin.dmg` |
+
+            ### Windows
+
+            | File | Description |
+            |---|---|
+            | `meme-overlay-x86_64-pc-windows-msvc.exe` | CLI client binary |
+            | `.msi` | Windows installer |
+
+            ## How the two macOS artifacts relate
+
+            Both share the **same core binary** (`meme-overlay`).  The DMG's `.app`
+            bundle contains a thin shell launcher (`launch-server.sh`) set as
+            `CFBundleExecutable` in `Info.plist`.  The script simply calls the real
+            binary with `--mode server`, so the Settings window opens on double-click.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
