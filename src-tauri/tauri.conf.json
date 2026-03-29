@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicehash/tauri-schema/v2/schema.json",
+  "productName": "meme-overlay",
+  "version": "0.1.0",
+  "identifier": "com.opencode.meme",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "overlay",
+        "title": "OpenCode",
+        "url": "overlay.html",
+        "width": 320,
+        "height": 180,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": false,
+        "resizable": false,
+        "visible": false,
+        "dragDropEnabled": true
+      },
+      {
+        "label": "settings",
+        "title": "OpenCode Meme Settings",
+        "url": "settings.html",
+        "width": 900,
+        "height": 680,
+        "resizable": true,
+        "visible": false,
+        "center": true,
+        "minWidth": 720,
+        "minHeight": 520
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' data: asset:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-eval'; media-src 'self' data: asset: blob:; img-src 'self' data: asset: blob:;"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "iOS": {
+      "developmentTeam": ""
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "exceptionDomain": "",
+      "entitlements": null
+    }
+  }
+}

@@ -1,0 +1,127 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS-arm64
+            os: macos-latest
+            rust-target: aarch64-apple-darwin
+            tauri-args: --target aarch64-apple-darwin
+            binary-ext: ""
+            bundle-glob: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+
+          - name: macOS-x86_64
+            os: macos-13
+            rust-target: x86_64-apple-darwin
+            tauri-args: --target x86_64-apple-darwin
+            binary-ext: ""
+            bundle-glob: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+
+          - name: Windows-x86_64
+            os: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            tauri-args: --target x86_64-pc-windows-msvc
+            binary-ext: ".exe"
+            bundle-glob: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+
+    env:
+      BINARY_NAME: meme-overlay
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm install
+
+      - name: Sync version from tag
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          npm version "$TAG" --no-git-tag-version
+          node -e "
+            const fs = require('fs');
+            const tag = '$TAG';
+            let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+            cargo = cargo.replace(/^version = \"[^\"]*\"/m, 'version = \"' + tag + '\"');
+            fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+            const conf = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            conf.version = tag;
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(conf, null, 2) + '\n');
+          "
+
+      - name: Build Tauri app
+        shell: bash
+        run: npx tauri build ${{ matrix.tauri-args }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename binary (avoid filename conflicts across platforms)
+        shell: bash
+        run: |
+          SRC="src-tauri/target/${{ matrix.rust-target }}/release/meme-overlay${{ matrix.binary-ext }}"
+          cp "$SRC" "meme-overlay-${{ matrix.rust-target }}${{ matrix.binary-ext }}"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            meme-overlay-${{ matrix.rust-target }}${{ matrix.binary-ext }}
+            ${{ matrix.bundle-glob }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  finalize:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          body: |
+            ## Download
+
+            | Platform | Binary | Installer |
+            |----------|--------|-----------|
+            | macOS Apple Silicon | `meme-overlay-aarch64-apple-darwin` | `.dmg` |
+            | macOS Intel | `meme-overlay-x86_64-apple-darwin` | `.dmg` |
+            | Windows x64 | `meme-overlay-x86_64-pc-windows-msvc.exe` | `.msi` |
+
+            ## Install
+
+            Place the binary at `~/.config/meme-overlay/bin/meme-overlay` and make it executable:
+            ```bash
+            chmod +x ~/.config/meme-overlay/bin/meme-overlay
+            ```
+
+            **Modes:**
+            - Overlay (launched by plugin): default
+            - Settings UI: `meme-overlay --mode server`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
