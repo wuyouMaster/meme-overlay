@@ -1,6 +1,6 @@
 {
   "name": "meme-overlay",
-  "version": "0.2.0",
+  "version": "0.0.4",
   "description": "Animated overlay for opencode / Claude Code — plays Lottie memes on AI events",
   "type": "module",
   "bin": {
@@ -8,8 +8,7 @@
   },
   "files": [
     "scripts/postinstall.cjs",
-    "scripts/run.cjs",
-    "bin/.gitkeep"
+    "scripts/run.cjs"
   ],
   "scripts": {
     "dev": "vite",

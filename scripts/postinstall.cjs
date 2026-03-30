@@ -68,7 +68,7 @@ async function main() {
 
   const isWindows = os.platform() === "win32";
   const destName = isWindows ? "meme-overlay.exe" : "meme-overlay";
-  const destDir = path.join(__dirname, "..", "bin");
+  const destDir = path.join(os.homedir(), ".config", "meme-overlay", "bin");
   const destPath = path.join(destDir, destName);
 
   // Skip if already downloaded (e.g. repeated npm install in dev)

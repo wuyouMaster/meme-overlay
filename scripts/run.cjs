@@ -12,11 +12,7 @@ function findBinary() {
   const isWindows = os.platform() === "win32";
   const ext = isWindows ? ".exe" : "";
 
-  // 1. Next to this script inside the npm package (downloaded by postinstall)
-  const bundled = path.join(__dirname, "..", "bin", `meme-overlay${ext}`);
-  if (fs.existsSync(bundled)) return bundled;
-
-  // 2. Installed by `make install` (or the user copied it there manually)
+  // 1. Installed by postinstall / `make install`
   const fromConfig = path.join(
     os.homedir(),
     ".config",
@@ -26,7 +22,7 @@ function findBinary() {
   );
   if (fs.existsSync(fromConfig)) return fromConfig;
 
-  // 3. Built locally during development
+  // 2. Built locally during development
   const devRelease = path.join(
     __dirname,
     "..",
