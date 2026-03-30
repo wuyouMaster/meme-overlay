@@ -111,10 +111,10 @@ export function SettingsApp() {
     const selected = await open({
       multiple: true,
       filters: [
-        { name: "All Supported", extensions: ["json", "gif", "mp4", "webm", "png", "jpg", "jpeg", "webp", "svg"] },
+        { name: "All Supported", extensions: ["json", "gif", "mp4", "webm", "mov", "png", "jpg", "jpeg", "webp", "svg"] },
         { name: "Lottie Animation", extensions: ["json"] },
         { name: "GIF Image", extensions: ["gif"] },
-        { name: "Video", extensions: ["mp4", "webm"] },
+        { name: "Video", extensions: ["mp4", "webm", "mov"] },
         { name: "Static Image", extensions: ["png", "jpg", "jpeg", "webp", "svg"] },
       ],
     });

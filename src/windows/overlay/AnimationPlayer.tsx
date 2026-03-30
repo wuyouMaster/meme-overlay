@@ -17,7 +17,9 @@ export function AnimationPlayer({ name }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<AnimationItem | null>(null);
   const [gifUrl, setGifUrl] = useState<string | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  // Dual-source video: .mov (hvc1, WKWebView alpha) + .webm (vp9, Chrome fallback)
+  const [movUrl, setMovUrl] = useState<string | null>(null);
+  const [webmUrl, setWebmUrl] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   // Log container dimensions after render
@@ -41,7 +43,8 @@ export function AnimationPlayer({ name }: Props) {
     animRef.current?.destroy();
     animRef.current = null;
     setGifUrl(null);
-    setVideoUrl(null);
+    setMovUrl(null);
+    setWebmUrl(null);
     setImageUrl(null);
 
     // No name → use built-in default lottie (requires ref)
@@ -114,16 +117,30 @@ export function AnimationPlayer({ name }: Props) {
               });
             });
         } else if (entry.anim_type === "video") {
-          const mime = entry.path.endsWith(".webm") ? "video/webm" : "video/mp4";
-          console.log("[AnimationPlayer] loading video, mime:", mime, "path:", entry.path);
-          invoke<number[]>("read_binary_file", { path: entry.path })
-            .then((bytes) => {
-              console.log("[AnimationPlayer] video loaded, bytes:", bytes.length);
+          // Derive companion paths: always load .webm; also try .mov for WKWebView hvc1 alpha support
+          const webmPath = entry.path.endsWith(".webm")
+            ? entry.path
+            : entry.path.replace(/\.[^.]+$/, ".webm");
+          const movPath = entry.path.replace(/\.[^.]+$/, ".mov");
+
+          console.log("[AnimationPlayer] loading video pair — webm:", webmPath, "mov:", movPath);
+
+          const loadFile = (path: string, mime: string) =>
+            invoke<number[]>("read_binary_file", { path }).then((bytes) => {
               const blob = new Blob([new Uint8Array(bytes)], { type: mime });
-              setVideoUrl(URL.createObjectURL(blob));
-            })
-            .catch((e) => {
-              console.error("[AnimationPlayer] video load failed:", e, "→ fallback to default spinner");
+              return URL.createObjectURL(blob);
+            });
+
+          Promise.allSettled([
+            loadFile(movPath, "video/mp4"),
+            loadFile(webmPath, "video/webm"),
+          ]).then(([movResult, webmResult]) => {
+            const mov = movResult.status === "fulfilled" ? movResult.value : null;
+            const webm = webmResult.status === "fulfilled" ? webmResult.value : null;
+            console.log("[AnimationPlayer] video pair loaded — mov:", !!mov, "webm:", !!webm);
+
+            if (!mov && !webm) {
+              console.error("[AnimationPlayer] both video sources failed → fallback to default spinner");
               if (!containerRef.current) return;
               animRef.current = lottie.loadAnimation({
                 container: containerRef.current,
@@ -132,7 +149,11 @@ export function AnimationPlayer({ name }: Props) {
                 autoplay: true,
                 animationData: defaultSpinner,
               });
-            });
+              return;
+            }
+            setMovUrl(mov);
+            setWebmUrl(webm);
+          });
         } else {
           console.log("[AnimationPlayer] loading lottie JSON from path:", entry.path);
           invoke<number[]>("read_binary_file", { path: entry.path })
@@ -187,12 +208,13 @@ export function AnimationPlayer({ name }: Props) {
   useEffect(() => {
     return () => {
       if (gifUrl) URL.revokeObjectURL(gifUrl);
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      if (movUrl) URL.revokeObjectURL(movUrl);
+      if (webmUrl) URL.revokeObjectURL(webmUrl);
       if (imageUrl) URL.revokeObjectURL(imageUrl);
     };
-  }, [gifUrl, videoUrl, imageUrl]);
+  }, [gifUrl, movUrl, webmUrl, imageUrl]);
 
-  console.log(`[AnimationPlayer] render branch — gifUrl:${!!gifUrl} videoUrl:${!!videoUrl} imageUrl:${!!imageUrl} name:"${name}"`);
+  console.log(`[AnimationPlayer] render branch — gifUrl:${!!gifUrl} movUrl:${!!movUrl} webmUrl:${!!webmUrl} imageUrl:${!!imageUrl} name:"${name}"`);
 
   if (imageUrl) {
     return (
@@ -222,11 +244,10 @@ export function AnimationPlayer({ name }: Props) {
     );
   }
 
-  if (videoUrl) {
+  if (movUrl || webmUrl) {
     return (
       <div className="animation-player">
         <video
-          src={videoUrl}
           autoPlay
           loop
           muted
@@ -234,7 +255,10 @@ export function AnimationPlayer({ name }: Props) {
           style={{ width: "100%", height: "100%", objectFit: "contain" }}
           onCanPlay={() => console.log("[AnimationPlayer] <video> onCanPlay fired")}
           onError={(e) => console.error("[AnimationPlayer] <video> onError:", e)}
-        />
+        >
+          {movUrl && <source src={movUrl} type="video/mp4; codecs=hvc1" />}
+          {webmUrl && <source src={webmUrl} type="video/webm; codecs=vp9" />}
+        </video>
       </div>
     );
   }

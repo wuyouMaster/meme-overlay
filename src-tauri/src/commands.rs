@@ -165,7 +165,7 @@ fn get_anim_type(ext: &str) -> &'static str {
     match ext {
         "json" => "lottie",
         "gif" => "gif",
-        "mp4" | "webm" => "video",
+        "mp4" | "webm" | "mov" => "video",
         "png" | "jpg" | "jpeg" | "webp" | "svg" => "image",
         _ => "",
     }
@@ -347,7 +347,7 @@ pub fn import_animation(source_path: String) -> Result<AnimationEntry, String> {
     let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("");
     let anim_type = get_anim_type(ext);
     if anim_type.is_empty() {
-        return Err("Unsupported format. Use .json, .gif, .mp4, .webm, .png, .jpg".into());
+        return Err("Unsupported format. Use .json, .gif, .mp4, .webm, .mov, .png, .jpg".into());
     }
 
     if !src.exists() {

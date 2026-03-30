@@ -63,7 +63,7 @@ export function AnimationPreview({ path, animType }: Props) {
     }
 
     if (animType === "video") {
-      const mime = path.endsWith(".webm") ? "video/webm" : "video/mp4";
+      const mime = path.endsWith(".webm") ? "video/webm" : "video/mp4"; // .mp4 and .mov both use video/mp4
       invoke<number[]>("read_binary_file", { path })
         .then((bytes) => {
           console.log("Video loaded, size:", bytes.length);
