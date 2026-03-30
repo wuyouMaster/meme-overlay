@@ -24,7 +24,7 @@ jobs:
             app-path: src-tauri/target/aarch64-apple-darwin/release/bundle/macos/meme-overlay.app
 
           - name: macOS-x86_64
-            os: macos-13
+            os: macos-15-intel
             rust-target: x86_64-apple-darwin
             tauri-args: --target x86_64-apple-darwin
             binary-ext: ""

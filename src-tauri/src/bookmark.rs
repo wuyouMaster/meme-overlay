@@ -8,7 +8,6 @@ use core_foundation::string::CFString;
 use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
 #[cfg(target_os = "macos")]
 use objc::{msg_send, sel, sel_impl};
-#[cfg(target_os = "macos")]
 use std::path::Path;
 
 /// 从文件路径创建 Security-Scoped Bookmark

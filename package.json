@@ -1,8 +1,16 @@
 {
   "name": "meme-overlay",
   "version": "0.1.0",
-  "private": true,
+  "description": "Animated overlay for opencode / Claude Code — plays Lottie memes on AI events",
   "type": "module",
+  "bin": {
+    "meme-overlay": "scripts/run.cjs"
+  },
+  "files": [
+    "scripts/postinstall.cjs",
+    "scripts/run.cjs",
+    "bin/.gitkeep"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,13 +19,16 @@
     "tauri:build": "npx tauri build",
     "check": "npx tsc --noEmit && cd src-tauri && cargo check",
     "check:ts": "npx tsc --noEmit",
-    "check:rust": "cd src-tauri && cargo check"
+    "check:rust": "cd src-tauri && cargo check",
+    "postinstall": "node scripts/postinstall.cjs"
   },
-  "dependencies": {
-    "lottie-web": "^5.12.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wuyouMaster/meme-overlay.git"
   },
+  "homepage": "https://github.com/wuyouMaster/meme-overlay#readme",
+  "keywords": ["opencode", "overlay", "lottie", "animation", "tauri"],
+  "license": "MIT",
   "devDependencies": {
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/cli": "^2.5.0",
@@ -26,6 +37,9 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "lottie-web": "^5.12.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.7.0",
     "vite": "^6.0.0"
   }
