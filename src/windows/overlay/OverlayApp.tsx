@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
 import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
 import { PhysicalPosition } from "@tauri-apps/api/dpi";
@@ -44,6 +44,11 @@ export function OverlayApp() {
     animationName: "",
     progressText: "",
   });
+  // Track whether the window has been given an initial random position.
+  // After the first show, subsequent shows (from different hooks) reuse the
+  // current position so the window doesn't jump around. If the user drags the
+  // window, its OS position is updated automatically and will be preserved too.
+  const hasPositionedRef = useRef(false);
 
   useEffect(() => {
     console.log("[OverlayApp] mounting, registering plugin-message listener");
@@ -56,7 +61,14 @@ export function OverlayApp() {
         case "show":
           console.log("[OverlayApp] → show: setting visible=true, calling window.show()");
           setState((s) => ({ ...s, visible: true }));
-          moveToRandomPosition().then(() => win.show());
+          if (!hasPositionedRef.current) {
+            hasPositionedRef.current = true;
+            console.log("[OverlayApp] → first show, randomising position");
+            moveToRandomPosition().then(() => win.show());
+          } else {
+            console.log("[OverlayApp] → subsequent show, keeping current position");
+            win.show();
+          }
           break;
         case "hide":
           console.log("[OverlayApp] → hide: setting visible=false, calling window.hide()");
