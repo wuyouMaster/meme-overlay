@@ -60,19 +60,62 @@ meme-overlay 是一个基于 [Tauri v2](https://tauri.app) 的轻量级桌面应
 
 ## 📦 安装
 
-### 前置条件
+**支持平台**: macOS (Intel/Apple Silicon) · Windows (x64)
 
-| 依赖 | 版本 | 说明 |
-|------|------|------|
-| [Rust](https://rustup.rs/) | 1.77+ | Tauri 后端编译 |
-| [Node.js](https://nodejs.org/) | 18+ | 前端构建 |
+### macOS（推荐）
 
-**支持平台**: macOS (Intel/Apple Silicon) · Linux (x64) · Windows (x64)
+```bash
+npm install -g meme-overlay
+```
+
+postinstall 脚本会自动下载对应架构的二进制文件到 `~/.config/meme-overlay/bin/`。
+
+如需 Settings 界面（双击打开设置），从 [GitHub Releases](https://github.com/wuyouMaster/meme-overlay/releases) 下载对应架构的 server DMG：
+
+| 架构 | 文件 |
+|------|------|
+| Apple Silicon | `meme-overlay-server-aarch64-apple-darwin.dmg` |
+| Intel | `meme-overlay-server-x86_64-apple-darwin.dmg` |
+
+### Windows
+
+```bash
+npm install -g meme-overlay
+```
+
+然后从 [GitHub Releases](https://github.com/wuyouMaster/meme-overlay/releases) 下载 `meme-overlay-server-x86_64-pc-windows-msvc.exe`。双击 server exe 即可打开设置界面。
+
+### 设置动画
+
+双击 meme-overlay 应用即可进入设置页面。设置页面支持导入本地动画资源，并可为不同的生命周期事件配置对应的动画。
+
+#### 1. 导入动画资源
+
+![设置首页](./settings.png)
+
+#### 2. 配置 OpenCode 动画
+
+![设置 opencode](./opencode-settings.png)
+
+#### 3. 配置 Claude Code 动画
+
+![设置 claude code](./claude-code-settings.png)
+
+## 🚀 使用
+
+### 配合 OpenCode 使用
+1. 参见文档[opencode-meme](https://github.com/wuyouMaster/opencode-meme)
+
+### 配合 Claude Code 使用
+
+1. 参见文档 [cc-meme](https://github.com/wuyouMaster/cc-meme)
 
 ### 从源码构建
 
+**前置条件**: [Rust](https://rustup.rs/) 1.77+ · [Node.js](https://nodejs.org/) 18+
+
 ```bash
-git clone https://github.com/wuyouMaster/opencode-overlay.git
+git clone https://github.com/wuyouMaster/meme-overlay.git
 cd opencode-overlay
 
 # 安装前端依赖
@@ -96,25 +139,6 @@ make check
 ```
 
 ---
-
-## 🚀 使用
-
-### 配合 OpenCode 使用
-
-1. 完成安装后，编辑 `~/.config/opencode/opencode.json`：
-
-```json
-{
-  "plugin": ["/path/to/opencode-plugin/dist/opencode-meme.js"]
-}
-```
-
-2. 启动 OpenCode，覆盖层会自动出现。
-
-### 配合 Claude Code 使用
-
-1. 编辑 `~/.claude/settings.json`，添加 Hook 配置（参见 [cc-meme](https://github.com/wuyouMaster/cc-meme) 文档）。
-2. 启动 Claude Code，覆盖层会自动出现。
 
 ### 系统托盘
 
@@ -277,6 +301,8 @@ make build TARGET=x86_64-pc-windows-msvc
 | 构建失败 | 运行 `make clean && npm install && make build` |
 | 覆盖层不透明 | macOS 需要开启 `macOSPrivateApi`（已默认配置） |
 | 动画不播放 | 检查动画文件格式是否正确，查看控制台报错 |
+| Windows 打不开设置界面 | 确认已从 GitHub Releases 下载 `meme-overlay-server-*.exe` 并放在同一目录 |
+| npm install 下载失败 | 从 [GitHub Releases](https://github.com/wuyouMaster/meme-overlay/releases) 手动下载二进制文件放到 `~/.config/meme-overlay/bin/` |
 
 ---
 

@@ -60,19 +60,64 @@ It consists of three core components:
 
 ## 📦 Installation
 
-### Prerequisites
+**Supported Platforms**: macOS (Intel/Apple Silicon) · Windows (x64)
 
-| Dependency | Version | Description |
-|-----------|---------|-------------|
-| [Rust](https://rustup.rs/) | 1.77+ | Tauri backend compilation |
-| [Node.js](https://nodejs.org/) | 18+ | Frontend build |
+### macOS (recommended)
 
-**Supported Platforms**: macOS (Intel/Apple Silicon) · Linux (x64) · Windows (x64)
+```bash
+npm install -g meme-overlay
+```
+
+The postinstall script automatically downloads the platform-specific binary to `~/.config/meme-overlay/bin/`.
+
+For the Settings UI (double-click to open settings), download the server DMG for your architecture from [GitHub Releases](https://github.com/wuyouMaster/meme-overlay/releases):
+
+| Architecture | File |
+|---|---|
+| Apple Silicon | `meme-overlay-server-aarch64-apple-darwin.dmg` |
+| Intel | `meme-overlay-server-x86_64-apple-darwin.dmg` |
+
+### Windows
+
+```bash
+npm install -g meme-overlay
+```
+
+Then download `meme-overlay-server-x86_64-pc-windows-msvc.exe` from [GitHub Releases](https://github.com/wuyouMaster/meme-overlay/releases) and place it in the same directory as `meme-overlay.exe` (located at `%USERPROFILE%\.config\meme-overlay\bin\`). Double-click the server exe to open the Settings UI.
+
+### Setting Up Animations
+
+Double-click the meme-overlay app to open the Settings page. The Settings page allows you to import local animation resources and configure corresponding animations for different lifecycle events.
+
+#### 1. Import Animation Resources
+
+![Settings Home](./settings.png)
+
+#### 2. Configure OpenCode Animations
+
+![OpenCode Settings](./opencode-settings.png)
+
+#### 3. Configure Claude Code Animations
+
+![Claude Code Settings](./claude-code-settings.png)
+
+
+## 🚀 Usage
+
+### Using with OpenCode
+
+1. See documentation [opencode-meme](https://github.com/wuyouMaster/opencode-meme)
+
+### Using with Claude Code
+
+1. See documentation [cc-meme](https://github.com/wuyouMaster/cc-meme)
 
 ### Build from Source
 
+**Prerequisites**: [Rust](https://rustup.rs/) 1.77+ · [Node.js](https://nodejs.org/) 18+
+
 ```bash
-git clone https://github.com/wuyouMaster/opencode-overlay.git
+git clone https://github.com/wuyouMaster/meme-overlay.git
 cd opencode-overlay
 
 # Install frontend dependencies
@@ -96,25 +141,6 @@ make check
 ```
 
 ---
-
-## 🚀 Usage
-
-### With OpenCode
-
-1. After installation, edit `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "plugin": ["/path/to/opencode-plugin/dist/opencode-meme.js"]
-}
-```
-
-2. Start OpenCode and the overlay will appear automatically.
-
-### With Claude Code
-
-1. Edit `~/.claude/settings.json` and add hook configuration (see [cc-meme](https://github.com/wuyouMaster/cc-meme) docs).
-2. Start Claude Code and the overlay will appear automatically.
 
 ### System Tray
 
@@ -277,7 +303,8 @@ make build TARGET=x86_64-pc-windows-msvc
 | Build fails | Run `make clean && npm install && make build` |
 | Overlay not transparent | macOS requires `macOSPrivateApi` (pre-configured) |
 | Animations not playing | Check animation file format, check console errors |
-
+| Windows Settings won't open | Make sure you downloaded `meme-overlay-server-*.exe` from GitHub Releases and placed it in the same directory |
+| npm install download fails | Download binary manually from [GitHub Releases](https://github.com/wuyouMaster/meme-overlay/releases) and place it at `~/.config/meme-overlay/bin/` |
 ---
 
 ## 📄 License
