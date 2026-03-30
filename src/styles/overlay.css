@@ -30,8 +30,11 @@ body {
   align-items: center;
   justify-content: center;
   background: transparent;
+  /* Let mouse events pass through to the drag-region on the parent */
+  pointer-events: none;
 }
 
+.animation-player canvas,
 .animation-player video,
 .animation-player img {
   width: 100%;
@@ -39,6 +42,7 @@ body {
   object-fit: contain;
   display: block;
   background: transparent;
+  pointer-events: none;
 }
 
 .progress-text {

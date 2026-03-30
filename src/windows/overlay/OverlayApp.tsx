@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
+import { PhysicalPosition } from "@tauri-apps/api/dpi";
 import { Overlay } from "./Overlay";
 import "../../styles/overlay.css";
 
@@ -16,6 +17,27 @@ type OverlayState = {
   progressText: string;
 };
 
+const WIN_W = 320;
+const WIN_H = 180;
+const MARGIN = 20;
+
+async function moveToRandomPosition() {
+  const monitor = await currentMonitor();
+  if (!monitor) return;
+
+  const { width, height } = monitor.size;
+  const scale = monitor.scaleFactor;
+  const winWPx = WIN_W * scale;
+  const winHPx = WIN_H * scale;
+
+  const maxX = Math.max(0, width - winWPx - MARGIN * scale);
+  const maxY = Math.max(0, height - winHPx - MARGIN * scale);
+  const x = monitor.position.x + Math.floor(Math.random() * maxX);
+  const y = monitor.position.y + Math.floor(Math.random() * maxY);
+
+  await getCurrentWindow().setPosition(new PhysicalPosition(x, y));
+}
+
 export function OverlayApp() {
   const [state, setState] = useState<OverlayState>({
     visible: false,
@@ -28,18 +50,18 @@ export function OverlayApp() {
 
     const unlisten = listen<PluginMessage>("plugin-message", ({ payload }) => {
       console.log("[OverlayApp] received plugin-message:", JSON.stringify(payload));
-      const window = getCurrentWindow();
+      const win = getCurrentWindow();
 
       switch (payload.type) {
         case "show":
           console.log("[OverlayApp] → show: setting visible=true, calling window.show()");
           setState((s) => ({ ...s, visible: true }));
-          window.show();
+          moveToRandomPosition().then(() => win.show());
           break;
         case "hide":
           console.log("[OverlayApp] → hide: setting visible=false, calling window.hide()");
           setState((s) => ({ ...s, visible: false, progressText: "" }));
-          window.hide();
+          win.hide();
           break;
         case "animation":
           console.log("[OverlayApp] → animation name:", payload.name);
