@@ -18,8 +18,11 @@ fn main() {
     let beside = exe_dir.join(client_name);
 
     // 2. Fall back to the path that `npm install` (postinstall.cjs) puts the binary.
-    let npm_install_path = dirs::config_dir()
-        .map(|d| d.join("meme-overlay").join("bin").join(client_name));
+    // postinstall.cjs uses `path.join(os.homedir(), ".config", "meme-overlay", "bin")`,
+    // which on Windows resolves to C:\Users\<user>\.config\meme-overlay\bin —
+    // NOT %APPDATA% (AppData\Roaming). Must use home_dir() here to match.
+    let npm_install_path = dirs::home_dir()
+        .map(|d| d.join(".config").join("meme-overlay").join("bin").join(client_name));
 
     let main_exe = if beside.exists() {
         beside
