@@ -31,6 +31,8 @@ pub struct HookAssignment {
     pub animation: Option<String>,
     #[serde(default)]
     pub custom_text: Option<String>,
+    #[serde(default)]
+    pub movement_direction: Option<String>,
 }
 
 /// Per-client config (opencode or cc)
@@ -126,7 +128,9 @@ fn get_client<'a>(config: &'a Config, client: &str) -> Result<&'a ClientConfig, 
     match client {
         "opencode" => Ok(&config.opencode),
         "cc" => Ok(&config.cc),
-        _ => Err(format!("Invalid client '{client}'. Must be 'opencode' or 'cc'")),
+        _ => Err(format!(
+            "Invalid client '{client}'. Must be 'opencode' or 'cc'"
+        )),
     }
 }
 
@@ -137,7 +141,9 @@ fn get_client_mut<'a>(
     match client {
         "opencode" => Ok(&mut config.opencode),
         "cc" => Ok(&mut config.cc),
-        _ => Err(format!("Invalid client '{client}'. Must be 'opencode' or 'cc'")),
+        _ => Err(format!(
+            "Invalid client '{client}'. Must be 'opencode' or 'cc'"
+        )),
     }
 }
 
@@ -590,6 +596,26 @@ pub fn set_filter_type(filter_type: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn set_hook_movement_direction(
+    client: String,
+    hook_id: String,
+    direction: Option<String>,
+) -> Result<(), String> {
+    if let Some(ref dir) = direction {
+        let valid = ["horizontal", "vertical", "none"];
+        if !valid.contains(&dir.as_str()) {
+            return Err(format!("Invalid direction. Must be one of: {valid:?}"));
+        }
+    }
+    let mut config = load_config();
+    let client_cfg = get_client_mut(&mut config, &client)?;
+    let assignment = client_cfg.hook_assignments.entry(hook_id).or_default();
+    assignment.movement_direction = direction;
+    save_config(&config);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn read_animation_file(path: String) -> Result<String, String> {
     fs::read_to_string(&path).map_err(|e| format!("Read failed: {e}"))
 }
@@ -666,7 +692,9 @@ fn save_bookmark_for_animation(name: &str, bookmark: &str) -> Result<(), String>
 pub fn assign_phase(animation_name: String, phase: String) -> Result<(), String> {
     let valid = ["coding", "thinking", "success"];
     if !valid.contains(&phase.as_str()) {
-        return Err(format!("Invalid phase '{phase}'. Must be one of: {valid:?}"));
+        return Err(format!(
+            "Invalid phase '{phase}'. Must be one of: {valid:?}"
+        ));
     }
     if find_animation_by_name(&animation_name).is_none() {
         return Err(format!("Animation '{animation_name}' not found"));

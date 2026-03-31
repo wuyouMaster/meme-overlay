@@ -6,7 +6,7 @@ use tauri::{Emitter, Manager};
 #[serde(tag = "type")]
 pub enum PluginMessage {
     #[serde(rename = "show")]
-    Show,
+    Show { hook_id: Option<String> },
     #[serde(rename = "hide")]
     Hide,
     #[serde(rename = "animation")]

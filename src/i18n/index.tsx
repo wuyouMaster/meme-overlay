@@ -70,6 +70,10 @@ const translations: Translations = {
     en: "Reset all hook assignments to defaults?",
     zh: "将所有钩子分配重置为默认值？",
   },
+  "hooks.movementDirection": { en: "Movement Direction", zh: "运动方向" },
+  "hooks.movementNone": { en: "None (Fixed)", zh: "无（固定）" },
+  "hooks.movementHorizontal": { en: "Horizontal", zh: "水平" },
+  "hooks.movementVertical": { en: "Vertical", zh: "垂直" },
 
   // Hook Categories
   "hooks.category.session": { en: "Session Hooks", zh: "会话钩子" },

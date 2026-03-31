@@ -15,6 +15,7 @@ type HookInfo = {
 type HookAssignment = {
   animation?: string;
   custom_text?: string;
+  movement_direction?: string;
 };
 
 type AnimationEntry = {
@@ -97,6 +98,18 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
       }));
     } catch (e) {
       console.error("Failed to set custom text:", e);
+    }
+  };
+
+  const handleMovementDirectionChange = async (hookId: string, direction: string) => {
+    try {
+      await invoke("set_hook_movement_direction", { client, hookId, direction: direction || null });
+      setHookConfig((prev) => ({
+        ...prev,
+        [hookId]: { ...prev[hookId], movement_direction: direction },
+      }));
+    } catch (e) {
+      console.error("Failed to set movement direction:", e);
     }
   };
 
@@ -192,6 +205,20 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
                             value={assignment.custom_text ?? ""}
                             onChange={(e) => handleTextChange(hook.id, e.target.value)}
                           />
+                        </div>
+
+                        <div className="hook-control">
+                          <label>{t("hooks.movementDirection")}</label>
+                          <select
+                            value={assignment.movement_direction ?? ""}
+                            onChange={(e) =>
+                              handleMovementDirectionChange(hook.id, e.target.value || "")
+                            }
+                          >
+                            <option value="">{t("hooks.movementNone")}</option>
+                            <option value="horizontal">{t("hooks.movementHorizontal")}</option>
+                            <option value="vertical">{t("hooks.movementVertical")}</option>
+                          </select>
                         </div>
                       </div>
                     </div>

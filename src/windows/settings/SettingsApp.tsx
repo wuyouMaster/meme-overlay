@@ -309,7 +309,7 @@ export function SettingsApp() {
             </aside>
 
             {/* Main Content Area */}
-            <main className="settings-content">
+              <main className="settings-content">
               {selectedItem ? (
                 <>
                   <div className="preview-panel">
