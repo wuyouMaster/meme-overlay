@@ -21,7 +21,9 @@
 
 meme-overlay is a lightweight desktop application built with [Tauri v2](https://tauri.app) that provides a floating animation overlay for [OpenCode](https://github.com/sst/opencode) and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
-[![Demo](https://img.youtube.com/vi/_Oct2kNKrAg/maxresdefault.jpg)](https://youtu.be/_Oct2kNKrAg)
+The demonstration animation is shown below：
+
+[![▶ 点击观看演示](https://img.youtube.com/vi/_Oct2kNKrAg/maxresdefault.jpg)](https://youtu.be/_Oct2kNKrAg)
 
 It consists of three core components:
 - **Overlay window** — Transparent, always-on-top, draggable animation display

@@ -21,7 +21,7 @@
 
 meme-overlay 是一个基于 [Tauri v2](https://tauri.app) 的轻量级桌面应用，为 [OpenCode](https://github.com/sst/opencode) 和 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 提供浮动动画覆盖层。
 
-<[![Demo](https://img.youtube.com/vi/_Oct2kNKrAg/maxresdefault.jpg)](https://youtu.be/_Oct2kNKrAg)
+[![▶ 点击观看演示](https://img.youtube.com/vi/_Oct2kNKrAg/maxresdefault.jpg)](https://youtu.be/_Oct2kNKrAg)
 
 它包含三个核心组件：
 - **Overlay 窗口** — 透明、置顶、可拖拽的动画显示窗口
