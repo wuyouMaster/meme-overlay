@@ -83,7 +83,6 @@ export function OverlayApp() {
     try {
       if (!hookId) {
         movementStateRef.current.direction = "none";
-        console.log("[OverlayApp] no hook_id, using direction: none");
         return;
       }
 
@@ -103,9 +102,6 @@ export function OverlayApp() {
       // by a hook that simply hasn't been configured (e.g. session.idle).
       if (configured != null) {
         movementStateRef.current.direction = configured as "horizontal" | "vertical" | "none";
-        console.log("[OverlayApp] direction updated for hook", hookId, "→", configured);
-      } else {
-        console.log("[OverlayApp] no direction for hook", hookId, ", keeping:", movementStateRef.current.direction);
       }
     } catch (e) {
       console.error("[OverlayApp] failed to load movement direction:", e);
@@ -118,15 +114,12 @@ export function OverlayApp() {
     // Guard against concurrent calls and frozen state.
     // Both checks must happen synchronously before any await.
     if (movementStateRef.current.moving) {
-      console.log("[startMovement] already moving, skipping duplicate start");
       return;
     }
     if (movementFrozenRef.current) {
-      console.log("[startMovement] frozen by stop_movement, skipping");
       return;
     }
     movementStateRef.current.moving = true;
-    console.log("[startMovement] starting new movement loop");
 
     const monitor = await currentMonitor();
     if (!monitor) {
@@ -186,15 +179,11 @@ export function OverlayApp() {
   };
 
   useEffect(() => {
-    console.log("[OverlayApp] mounting, registering plugin-message listener");
-
     const unlisten = listen<PluginMessage>("plugin-message", async ({ payload }) => {
-      console.log("[OverlayApp] received plugin-message:", JSON.stringify(payload));
       const win = getCurrentWindow();
 
       switch (payload.type) {
         case "show":
-          console.log(`[OverlayApp] → show hook_id=${payload.hook_id} stop_movement=${payload.stop_movement} moving=${movementStateRef.current.moving} t=${Date.now()}`);
           setState((s) => ({ ...s, visible: true }));
 
           if (payload.stop_movement) {
@@ -211,9 +200,15 @@ export function OverlayApp() {
           // Load movement direction for this hook
           await loadMovementDirection(payload.hook_id);
           
+          // If direction is "none" and we're currently moving, stop movement
+          if (movementStateRef.current.direction === "none" && movementStateRef.current.moving) {
+            stopMovement();
+            win.show();
+            break;
+          }
+          
           if (!hasPositionedRef.current) {
             hasPositionedRef.current = true;
-            console.log("[OverlayApp] → first show, randomising position");
             const pos = await moveToRandomPosition();
             movementStateRef.current.initialX = pos.x;
             movementStateRef.current.initialY = pos.y;
@@ -226,7 +221,6 @@ export function OverlayApp() {
               startMovement();
             }
           } else {
-            console.log("[OverlayApp] → subsequent show, keeping current position");
             win.show();
             
             // Resume movement if direction is not "none"
@@ -236,24 +230,20 @@ export function OverlayApp() {
           }
           break;
         case "hide":
-          console.log("[OverlayApp] → hide: setting visible=false, calling window.hide()");
           setState((s) => ({ ...s, visible: false, progressText: "" }));
           stopMovement();
           win.hide();
           break;
         case "animation":
-          console.log("[OverlayApp] → animation name:", payload.name);
           setState((s) => ({ ...s, animationName: payload.name }));
           break;
         case "progress":
-          console.log("[OverlayApp] → progress text:", payload.text);
           setState((s) => ({ ...s, progressText: payload.text }));
           break;
       }
     });
 
     // Notify the backend that listeners are registered and ready to receive events
-    console.log("[OverlayApp] emitting overlay-ready");
     emit("overlay-ready", {});
 
     return () => {
@@ -262,10 +252,7 @@ export function OverlayApp() {
     };
   }, []);
 
-  console.log("[OverlayApp] render, state:", JSON.stringify(state));
-
   if (!state.visible) {
-    console.log("[OverlayApp] not visible, returning null");
     return null;
   }
 

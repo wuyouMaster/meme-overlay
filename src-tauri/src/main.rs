@@ -62,41 +62,26 @@ fn main() {
 
             match mode {
                 AppMode::Server => {
-                    // Server 模式：显示设置界面
-                    eprintln!("[server] Starting in server mode");
                     if let Some(win) = app.get_webview_window("settings") {
                         let _ = win.show();
                         let _ = win.set_focus();
-                        eprintln!("[server] Settings window shown");
-                    } else {
-                        eprintln!("[server] Cannot find settings window");
                     }
                 }
                 AppMode::Overlay => {
-                    // Overlay 模式：显示浮窗动画
                     if demo_mode {
-                        // Show the native window immediately
                         if let Some(win) = app.get_webview_window("overlay") {
                             let _ = win.set_position(tauri::Position::Physical(
                                 tauri::PhysicalPosition::new(100, 100),
                             ));
                             let _ = win.show();
                             let _ = win.set_focus();
-                            eprintln!("[demo] Overlay window shown");
-                        } else {
-                            eprintln!("[demo] Cannot find overlay window");
                         }
 
-                        // Wait for the frontend to signal it is ready before sending demo events.
                         let handle = app.handle().clone();
                         app.once("overlay-ready", move |_| {
-                            eprintln!("[demo] Frontend ready, sending demo events");
-
                             let _ =
                                 handle.emit("plugin-message", serde_json::json!({"type": "show"}));
-                            eprintln!("[demo] Show event sent");
 
-                            // 获取导入的第一个动画名称
                             let animations = commands::list_animations();
                             let first_animation = animations.first();
                             let animation_name =
@@ -106,7 +91,6 @@ fn main() {
                                 "plugin-message",
                                 serde_json::json!({"type": "animation", "name": animation_name}),
                             );
-                            eprintln!("[demo] Animation event sent: {}", animation_name);
 
                             let _ = handle.emit(
                                 "plugin-message",
@@ -115,10 +99,8 @@ fn main() {
                                     "text": "Demo mode - running..."
                                 }),
                             );
-                            eprintln!("[demo] Progress event sent");
                         });
                     } else {
-                        // 正常模式：从 stdin 读取
                         let handle = app.handle().clone();
                         std::thread::spawn(move || {
                             stdin_reader::listen(handle);

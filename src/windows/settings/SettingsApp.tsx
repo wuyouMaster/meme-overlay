@@ -194,7 +194,7 @@ export function SettingsApp() {
 
   async function handleOnlineImport(url: string, name: string) {
     try {
-      console.log("Would import:", name, "from", url);
+      console.error("Online import not implemented:", name, url);
     } catch (e) {
       console.error("Online import failed:", e);
       throw e;

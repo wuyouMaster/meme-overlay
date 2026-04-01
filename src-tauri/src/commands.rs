@@ -348,7 +348,6 @@ pub fn list_animations() -> Vec<AnimationEntry> {
 #[tauri::command]
 pub fn import_animation(source_path: String) -> Result<AnimationEntry, String> {
     let src = PathBuf::from(&source_path);
-    eprintln!("[import] source: {}", src.display());
 
     let ext = src.extension().and_then(|e| e.to_str()).unwrap_or("");
     let anim_type = get_anim_type(ext);

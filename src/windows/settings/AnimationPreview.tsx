@@ -63,10 +63,9 @@ export function AnimationPreview({ path, animType }: Props) {
     }
 
     if (animType === "video") {
-      const mime = path.endsWith(".webm") ? "video/webm" : "video/mp4"; // .mp4 and .mov both use video/mp4
+      const mime = path.endsWith(".webm") ? "video/webm" : "video/mp4";
       invoke<number[]>("read_binary_file", { path })
         .then((bytes) => {
-          console.log("Video loaded, size:", bytes.length);
           const blob = new Blob([new Uint8Array(bytes)], { type: mime });
           setMediaUrl(URL.createObjectURL(blob));
           setLoading(false);
@@ -149,17 +148,6 @@ export function AnimationPreview({ path, animType }: Props) {
           playsInline
           controls
           className="preview-media"
-          onLoadedMetadata={(e) => {
-            const v = e.currentTarget;
-            console.log("Video metadata loaded:", {
-              width: v.videoWidth,
-              height: v.videoHeight,
-              duration: v.duration,
-              readyState: v.readyState,
-            });
-          }}
-          onLoadedData={() => console.log("Video loaded successfully")}
-          onError={(e) => console.error("Video error:", e)}
         />
       )}
 
