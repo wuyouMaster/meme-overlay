@@ -31,7 +31,7 @@ type MovementState = {
 const WIN_W = 320;
 const WIN_H = 180;
 const MARGIN = 20;
-const DEFAULT_SPEED = 2; // pixels per frame
+const DEFAULT_SPEED = 4; // pixels per frame
 
 async function moveToRandomPosition() {
   const monitor = await currentMonitor();
@@ -79,33 +79,36 @@ export function OverlayApp() {
   const animationFrameRef = useRef<number | null>(null);
 
   // Load movement direction from hook config
-  const loadMovementDirection = async (hookId?: string) => {
+  const loadMovementConfig = async (hookId?: string) => {
     try {
       if (!hookId) {
         movementStateRef.current.direction = "none";
+        movementStateRef.current.speed = DEFAULT_SPEED;
         return;
       }
 
-      // Get hook config for both clients (opencode and cc)
       const [opencodeConfig, ccConfig] = await Promise.all([
-        invoke<Record<string, { movement_direction?: string }>>("get_hook_config", { client: "opencode" }),
-        invoke<Record<string, { movement_direction?: string }>>("get_hook_config", { client: "cc" }),
+        invoke<Record<string, { movement_direction?: string; movement_speed?: number }>>("get_hook_config", { client: "opencode" }),
+        invoke<Record<string, { movement_direction?: string; movement_speed?: number }>>("get_hook_config", { client: "cc" }),
       ]);
 
-      // Find the hook assignment
       const hookAssignment = opencodeConfig[hookId] || ccConfig[hookId];
-      const configured = hookAssignment?.movement_direction;
-
-      // Only update direction when the hook explicitly has one configured.
-      // If unconfigured (null/undefined), keep the current direction so that
-      // movement set by a previous hook (e.g. session.created) is not interrupted
-      // by a hook that simply hasn't been configured (e.g. session.idle).
-      if (configured != null) {
-        movementStateRef.current.direction = configured as "horizontal" | "vertical" | "none";
+      
+      if (hookAssignment?.movement_direction != null) {
+        movementStateRef.current.direction = hookAssignment.movement_direction as "horizontal" | "vertical" | "none";
+      }
+      
+      if (hookAssignment?.movement_speed != null && 
+          hookAssignment.movement_speed >= 1 && 
+          hookAssignment.movement_speed <= 8) {
+        movementStateRef.current.speed = hookAssignment.movement_speed;
+      } else {
+        movementStateRef.current.speed = DEFAULT_SPEED;
       }
     } catch (e) {
-      console.error("[OverlayApp] failed to load movement direction:", e);
+      console.error("[OverlayApp] failed to load movement config:", e);
       movementStateRef.current.direction = "none";
+      movementStateRef.current.speed = DEFAULT_SPEED;
     }
   };
 
@@ -197,8 +200,8 @@ export function OverlayApp() {
           // startMovement will correctly see the frozen flag when we resume.
           movementFrozenRef.current = false;
 
-          // Load movement direction for this hook
-          await loadMovementDirection(payload.hook_id);
+          // Load movement configuration for this hook
+          await loadMovementConfig(payload.hook_id);
           
           // If direction is "none" and we're currently moving, stop movement
           if (movementStateRef.current.direction === "none" && movementStateRef.current.moving) {

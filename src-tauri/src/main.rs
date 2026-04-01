@@ -129,6 +129,7 @@ fn main() {
             commands::assign_hook_animation,
             commands::set_hook_custom_text,
             commands::set_hook_movement_direction,
+            commands::set_hook_movement_speed,
             commands::unassign_hook,
             commands::reset_hook_config,
             // Legacy phase commands

@@ -33,6 +33,8 @@ pub struct HookAssignment {
     pub custom_text: Option<String>,
     #[serde(default)]
     pub movement_direction: Option<String>,
+    #[serde(default)]
+    pub movement_speed: Option<u32>,
 }
 
 /// Per-client config (opencode or cc)
@@ -610,6 +612,25 @@ pub fn set_hook_movement_direction(
     let client_cfg = get_client_mut(&mut config, &client)?;
     let assignment = client_cfg.hook_assignments.entry(hook_id).or_default();
     assignment.movement_direction = direction;
+    save_config(&config);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_hook_movement_speed(
+    client: String,
+    hook_id: String,
+    speed: Option<u32>,
+) -> Result<(), String> {
+    if let Some(s) = speed {
+        if s < 1 || s > 8 {
+            return Err("Invalid speed. Must be between 1 and 8".into());
+        }
+    }
+    let mut config = load_config();
+    let client_cfg = get_client_mut(&mut config, &client)?;
+    let assignment = client_cfg.hook_assignments.entry(hook_id).or_default();
+    assignment.movement_speed = speed;
     save_config(&config);
     Ok(())
 }

@@ -16,6 +16,7 @@ type HookAssignment = {
   animation?: string;
   custom_text?: string;
   movement_direction?: string;
+  movement_speed?: number;
 };
 
 type AnimationEntry = {
@@ -104,12 +105,43 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
   const handleMovementDirectionChange = async (hookId: string, direction: string) => {
     try {
       await invoke("set_hook_movement_direction", { client, hookId, direction: direction || null });
+      
+      // 联动逻辑：当从 "none" 改为有方向时，自动设置默认速度 4
+      if (direction !== "none" && direction !== "") {
+        const currentConfig = hookConfig[hookId];
+        if (!currentConfig?.movement_speed) {
+          await invoke("set_hook_movement_speed", { client, hookId, speed: 4 });
+        }
+      }
+      
       setHookConfig((prev) => ({
         ...prev,
-        [hookId]: { ...prev[hookId], movement_direction: direction },
+        [hookId]: { 
+          ...prev[hookId], 
+          movement_direction: direction,
+          // 当方向改为 none 时，清除速度显示（但保留配置值）
+          movement_speed: direction === "none" || direction === "" ? undefined : prev[hookId]?.movement_speed,
+        },
       }));
     } catch (e) {
       console.error("Failed to set movement direction:", e);
+    }
+  };
+
+  const handleSpeedChange = async (hookId: string, speed: number) => {
+    try {
+      const validSpeed = speed >= 1 && speed <= 8 ? speed : null;
+      await invoke("set_hook_movement_speed", { 
+        client, 
+        hookId, 
+        speed: validSpeed 
+      });
+      setHookConfig((prev) => ({
+        ...prev,
+        [hookId]: { ...prev[hookId], movement_speed: validSpeed ?? undefined },
+      }));
+    } catch (e) {
+      console.error("Failed to set movement speed:", e);
     }
   };
 
@@ -220,6 +252,33 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
                             <option value="vertical">{t("hooks.movementVertical")}</option>
                           </select>
                         </div>
+
+                        {(assignment.movement_direction === "horizontal" || assignment.movement_direction === "vertical") && (
+                          <div className="hook-control">
+                            <label>{t("hooks.movementSpeed")}</label>
+                            <div className="speed-slider-wrapper">
+                              <input
+                                type="range"
+                                min="1"
+                                max="8"
+                                step="1"
+                                value={assignment.movement_speed ?? 4}
+                                onChange={(e) => handleSpeedChange(hook.id, parseInt(e.target.value))}
+                                className="speed-slider"
+                              />
+                              <div className="speed-ticks">
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((tick) => (
+                                  <span key={tick} className="speed-tick">{tick}</span>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="speed-value-bar">
+                              <span className="speed-label">{t("hooks.speedSlow")}</span>
+                              <span className="speed-current-value">{assignment.movement_speed ?? 4}</span>
+                              <span className="speed-label">{t("hooks.speedFast")}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );

@@ -74,6 +74,9 @@ const translations: Translations = {
   "hooks.movementNone": { en: "None (Fixed)", zh: "无（固定）" },
   "hooks.movementHorizontal": { en: "Horizontal", zh: "水平" },
   "hooks.movementVertical": { en: "Vertical", zh: "垂直" },
+  "hooks.movementSpeed": { en: "Movement Speed", zh: "运动速度" },
+  "hooks.speedSlow": { en: "Slow", zh: "慢" },
+  "hooks.speedFast": { en: "Fast", zh: "快" },
 
   // Hook Categories
   "hooks.category.session": { en: "Session Hooks", zh: "会话钩子" },
