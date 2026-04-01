@@ -77,6 +77,7 @@ const translations: Translations = {
   "hooks.movementSpeed": { en: "Movement Speed", zh: "运动速度" },
   "hooks.speedSlow": { en: "Slow", zh: "慢" },
   "hooks.speedFast": { en: "Fast", zh: "快" },
+  "hooks.advanced": { en: "Advanced", zh: "高级配置" },
 
   // Hook Categories
   "hooks.category.session": { en: "Session Hooks", zh: "会话钩子" },

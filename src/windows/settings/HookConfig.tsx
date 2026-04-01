@@ -59,6 +59,7 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
   const [hooks, setHooks] = useState<HookInfo[]>([]);
   const [hookConfig, setHookConfig] = useState<Record<string, HookAssignment>>({});
   const [loading, setLoading] = useState(true);
+  const [expandedAdvanced, setExpandedAdvanced] = useState<Record<string, boolean>>({});
 
   const loadHookData = async () => {
     try {
@@ -156,6 +157,13 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
     }
   };
 
+  const toggleAdvanced = (hookId: string) => {
+    setExpandedAdvanced((prev) => ({
+      ...prev,
+      [hookId]: !prev[hookId],
+    }));
+  };
+
   if (loading) {
     return <div className="hook-config-loading">{t("hooks.loading")}</div>;
   }
@@ -195,6 +203,7 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
               <div className="hook-items">
                 {categoryHooks.map((hook) => {
                   const assignment = hookConfig[hook.id] ?? {};
+                  const isAdvancedExpanded = expandedAdvanced[hook.id] ?? false;
                   return (
                     <div key={hook.id} className="hook-item">
                       <div className="hook-item-header">
@@ -239,44 +248,47 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
                           />
                         </div>
 
-                        <div className="hook-control">
-                          <label>{t("hooks.movementDirection")}</label>
-                          <select
-                            value={assignment.movement_direction ?? ""}
-                            onChange={(e) =>
-                              handleMovementDirectionChange(hook.id, e.target.value || "")
-                            }
-                          >
-                            <option value="">{t("hooks.movementNone")}</option>
-                            <option value="horizontal">{t("hooks.movementHorizontal")}</option>
-                            <option value="vertical">{t("hooks.movementVertical")}</option>
-                          </select>
+                        <div className="advanced-toggle" onClick={() => toggleAdvanced(hook.id)}>
+                          <span className={`advanced-arrow ${isAdvancedExpanded ? "expanded" : ""}`}>›</span>
+                          <span>{t("hooks.advanced")}</span>
                         </div>
 
-                        {(assignment.movement_direction === "horizontal" || assignment.movement_direction === "vertical") && (
-                          <div className="hook-control">
-                            <label>{t("hooks.movementSpeed")}</label>
-                            <div className="speed-slider-wrapper">
-                              <input
-                                type="range"
-                                min="1"
-                                max="8"
-                                step="1"
-                                value={assignment.movement_speed ?? 4}
-                                onChange={(e) => handleSpeedChange(hook.id, parseInt(e.target.value))}
-                                className="speed-slider"
-                              />
-                              <div className="speed-ticks">
-                                {[1, 2, 3, 4, 5, 6, 7, 8].map((tick) => (
-                                  <span key={tick} className="speed-tick">{tick}</span>
-                                ))}
+                        {isAdvancedExpanded && (
+                          <div className="advanced-settings">
+                            <div className="hook-control">
+                              <label>{t("hooks.movementDirection")}</label>
+                              <select
+                                value={assignment.movement_direction ?? ""}
+                                onChange={(e) =>
+                                  handleMovementDirectionChange(hook.id, e.target.value || "")
+                                }
+                              >
+                                <option value="">{t("hooks.movementNone")}</option>
+                                <option value="horizontal">{t("hooks.movementHorizontal")}</option>
+                                <option value="vertical">{t("hooks.movementVertical")}</option>
+                              </select>
+                            </div>
+
+                            {(assignment.movement_direction === "horizontal" || assignment.movement_direction === "vertical") && (
+                              <div className="hook-control">
+                                <label>{t("hooks.movementSpeed")}</label>
+                                <div className="speed-slider-wrapper">
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="8"
+                                    step="1"
+                                    value={assignment.movement_speed ?? 4}
+                                    onChange={(e) => handleSpeedChange(hook.id, parseInt(e.target.value))}
+                                    className="speed-slider"
+                                    style={{ "--speed-percent": `${(((assignment.movement_speed ?? 4) - 1) / 7) * 100}%` } as React.CSSProperties}
+                                  />
+                                </div>
+                                <div className="speed-value-bar">
+                                  <span className="speed-current-value">{assignment.movement_speed ?? 4}</span>
+                                </div>
                               </div>
-                            </div>
-                            <div className="speed-value-bar">
-                              <span className="speed-label">{t("hooks.speedSlow")}</span>
-                              <span className="speed-current-value">{assignment.movement_speed ?? 4}</span>
-                              <span className="speed-label">{t("hooks.speedFast")}</span>
-                            </div>
+                            )}
                           </div>
                         )}
                       </div>
