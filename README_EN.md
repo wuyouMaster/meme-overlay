@@ -62,6 +62,24 @@ It consists of three core components:
 
 ---
 
+## 📝 Changelog
+
+### 2026-04-01
+
+#### ✨ New Features
+
+- **Animation Movement** — Overlay now supports horizontal and vertical movement animations while displaying
+- **Movement Speed Control** — Configurable animation speed for each hook
+- **Custom Movement Path** — Draw custom movement trajectories using an interactive canvas editor
+- **Path Optimization** — Automatic path smoothing and simplification algorithm for better performance
+- **Advanced Hook Configuration** — Extended settings panel with movement direction, speed, and custom path options per hook
+
+#### 🐛 Bug Fixes
+
+- Fix abnormal movement behavior during idle hook animation transitions
+
+---
+
 ## 📦 Installation
 
 **Supported Platforms**: macOS (Intel/Apple Silicon) · Windows (x64)
