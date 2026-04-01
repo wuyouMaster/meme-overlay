@@ -4,6 +4,7 @@ import { getCurrentWindow, currentMonitor } from "@tauri-apps/api/window";
 import { PhysicalPosition } from "@tauri-apps/api/dpi";
 import { invoke } from "@tauri-apps/api/core";
 import { Overlay } from "./Overlay";
+import { detectClosedPath } from "../../utils/pathOptimizer";
 import "../../styles/overlay.css";
 
 type PluginMessage =
@@ -125,9 +126,7 @@ export function OverlayApp() {
             movementStateRef.current.customPath = path;
             movementStateRef.current.pathIndex = 0;
             movementStateRef.current.pathDirection = 1;
-            movementStateRef.current.isClosed = path.length > 2 && 
-              Math.abs(path[0][0] - path[path.length - 1][0]) < 0.05 &&
-              Math.abs(path[0][1] - path[path.length - 1][1]) < 0.05;
+            movementStateRef.current.isClosed = detectClosedPath(path);
             logDebug(
               `loadMovementConfig: loaded custom path hook=${hookId} points=${path.length} closed=${movementStateRef.current.isClosed ? "true" : "false"}`
             );

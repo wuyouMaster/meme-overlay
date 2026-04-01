@@ -1,8 +1,32 @@
 export type Point = [number, number];
 
-const TARGET_POINTS = 40;
-const CLOSED_THRESHOLD = 0.05;
-const SMOOTHING_WINDOW = 2;
+// ---------------------------------------------------------------------------
+// Tuning constants
+// ---------------------------------------------------------------------------
+
+/** Resampled points per unit of normalized arc-length (0-1 space diagonal ≈ 1.41). */
+const SAMPLE_DENSITY = 60;
+/** Minimum and maximum resampled point count, regardless of path length. */
+const MIN_POINTS = 24;
+const MAX_POINTS = 100;
+
+/** Gaussian σ in resampled-point units. Kernel radius = ceil(σ × 2.5). */
+const SMOOTH_SIGMA = 1.5;
+
+/**
+ * Closed-path detection:
+ *   gap < max(CLOSED_ABSOLUTE, pathLength × CLOSED_RELATIVE)
+ *
+ * Using both thresholds keeps short paths from triggering false positives
+ * while still allowing long loops to be detected even if the user lifts the
+ * pen a little early.
+ */
+const CLOSED_ABSOLUTE = 0.04;
+const CLOSED_RELATIVE = 0.05;
+
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
 
 export function calculatePathLength(points: Point[]): number {
   let length = 0;
@@ -14,14 +38,24 @@ export function calculatePathLength(points: Point[]): number {
   return length;
 }
 
+function euclidean(a: Point, b: Point): number {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// ---------------------------------------------------------------------------
+// Resampling  —  arc-length parameterised with adaptive point count
+// ---------------------------------------------------------------------------
+
 function getPointAtDistance(points: Point[], targetDist: number): Point {
   let accumulated = 0;
-  
+
   for (let i = 1; i < points.length; i++) {
     const dx = points[i][0] - points[i - 1][0];
     const dy = points[i][1] - points[i - 1][1];
     const segLength = Math.sqrt(dx * dx + dy * dy);
-    
+
     if (accumulated + segLength >= targetDist) {
       const t = (targetDist - accumulated) / segLength;
       return [
@@ -31,57 +65,125 @@ function getPointAtDistance(points: Point[], targetDist: number): Point {
     }
     accumulated += segLength;
   }
-  
+
   return points[points.length - 1];
 }
 
-export function resamplePoints(points: Point[], count: number = TARGET_POINTS): Point[] {
+/**
+ * Resample `points` to evenly-spaced positions along the arc.
+ * When `count` is omitted, an adaptive count proportional to path length is used,
+ * clamped to [MIN_POINTS, MAX_POINTS].
+ */
+export function resamplePoints(points: Point[], count?: number): Point[] {
   if (points.length < 2) return points;
-  
+
   const totalLength = calculatePathLength(points);
   if (totalLength === 0) return points;
-  
-  const step = totalLength / (count - 1);
+
+  const n =
+    count ??
+    Math.max(MIN_POINTS, Math.min(MAX_POINTS, Math.round(totalLength * SAMPLE_DENSITY)));
+
+  const step = totalLength / (n - 1);
   const result: Point[] = [];
-  
-  for (let i = 0; i < count; i++) {
-    const target = i * step;
-    result.push(getPointAtDistance(points, target));
+
+  for (let i = 0; i < n; i++) {
+    result.push(getPointAtDistance(points, i * step));
   }
-  
+
   return result;
 }
 
-export function smoothPoints(points: Point[], windowSize: number = SMOOTHING_WINDOW): Point[] {
+// ---------------------------------------------------------------------------
+// Smoothing  —  Gaussian kernel with proper boundary handling
+// ---------------------------------------------------------------------------
+
+/** Build a normalised 1-D Gaussian kernel with the given σ. */
+function buildGaussianKernel(sigma: number): number[] {
+  const radius = Math.ceil(sigma * 2.5);
+  const weights: number[] = [];
+  let sum = 0;
+
+  for (let i = -radius; i <= radius; i++) {
+    const w = Math.exp(-(i * i) / (2 * sigma * sigma));
+    weights.push(w);
+    sum += w;
+  }
+
+  return weights.map((w) => w / sum);
+}
+
+/**
+ * Smooth `points` using a Gaussian kernel.
+ *
+ * - **Open paths** (`isClosed = false`): boundary indices are clamped
+ *   (replicate padding), preserving the overall position of endpoints
+ *   while still blending their immediate neighbourhood.
+ * - **Closed paths** (`isClosed = true`): indices wrap around so the
+ *   join is smoothed continuously with no seam.
+ */
+export function smoothPoints(
+  points: Point[],
+  isClosed = false,
+  sigma: number = SMOOTH_SIGMA,
+): Point[] {
   if (points.length < 3) return points;
-  
+
+  const kernel = buildGaussianKernel(sigma);
+  const radius = (kernel.length - 1) / 2;
+  const n = points.length;
+
   return points.map((_, i) => {
-    const start = Math.max(0, i - windowSize);
-    const end = Math.min(points.length, i + windowSize + 1);
-    const window = points.slice(start, end);
-    
     let sumX = 0;
     let sumY = 0;
-    for (const p of window) {
-      sumX += p[0];
-      sumY += p[1];
+
+    for (let ki = 0; ki < kernel.length; ki++) {
+      const offset = ki - radius;
+      let idx = i + offset;
+
+      if (isClosed) {
+        // Wrap around seamlessly
+        idx = ((idx % n) + n) % n;
+      } else {
+        // Clamp to edge (replicate padding)
+        idx = Math.max(0, Math.min(n - 1, idx));
+      }
+
+      sumX += points[idx][0] * kernel[ki];
+      sumY += points[idx][1] * kernel[ki];
     }
-    
-    return [sumX / window.length, sumY / window.length];
+
+    return [sumX, sumY] as Point;
   });
 }
 
-export function detectClosedPath(points: Point[]): boolean {
-  if (points.length < 3) return false;
-  
-  const first = points[0];
-  const last = points[points.length - 1];
-  const dx = first[0] - last[0];
-  const dy = first[1] - last[1];
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  
-  return distance < CLOSED_THRESHOLD;
+// ---------------------------------------------------------------------------
+// Closed-path detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns `true` when the gap between the first and last point is small
+ * enough to be considered a closed loop.
+ *
+ * The threshold is adaptive: `max(CLOSED_ABSOLUTE, totalLength × CLOSED_RELATIVE)`,
+ * which handles both short squiggles (absolute floor prevents false positives)
+ * and long paths (relative ceiling allows a bit of slop at the pen-up point).
+ *
+ * Requires at least 4 points to avoid degenerate cases.
+ */
+export function detectClosedPath(points: Point[], totalLength?: number): boolean {
+  if (points.length < 4) return false;
+
+  const gap = euclidean(points[0], points[points.length - 1]);
+  const length = totalLength ?? calculatePathLength(points);
+  const threshold = Math.max(CLOSED_ABSOLUTE, length * CLOSED_RELATIVE);
+
+  return gap < threshold;
 }
+
+// ---------------------------------------------------------------------------
+// High-level optimisation pipeline
+// ---------------------------------------------------------------------------
 
 export interface OptimizationResult {
   points: Point[];
@@ -90,9 +192,15 @@ export interface OptimizationResult {
   optimizedCount: number;
 }
 
+/**
+ * Full pipeline applied to raw drawn points:
+ *   1. Adaptive arc-length resample
+ *   2. Detect closed/open on resampled points (before smoothing)
+ *   3. Gaussian smooth with wrap-around for closed paths
+ */
 export function optimizePath(rawPoints: Point[]): OptimizationResult {
   const originalCount = rawPoints.length;
-  
+
   if (rawPoints.length < 2) {
     return {
       points: rawPoints,
@@ -101,11 +209,17 @@ export function optimizePath(rawPoints: Point[]): OptimizationResult {
       optimizedCount: rawPoints.length,
     };
   }
-  
-  const resampled = resamplePoints(rawPoints, TARGET_POINTS);
-  const smoothed = smoothPoints(resampled, SMOOTHING_WINDOW);
-  const isClosed = detectClosedPath(smoothed);
-  
+
+  // Step 1: even arc-length distribution, adaptive count
+  const resampled = resamplePoints(rawPoints);
+
+  // Step 2: detect closed/open before smoothing so user intent is respected
+  const pathLength = calculatePathLength(resampled);
+  const isClosed = detectClosedPath(resampled, pathLength);
+
+  // Step 3: Gaussian smooth; closed paths wrap at boundaries for a seamless join
+  const smoothed = smoothPoints(resampled, isClosed);
+
   return {
     points: smoothed,
     isClosed,
@@ -114,11 +228,15 @@ export function optimizePath(rawPoints: Point[]): OptimizationResult {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Coordinate utilities
+// ---------------------------------------------------------------------------
+
 export function normalizePoint(
   x: number,
   y: number,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
 ): Point {
   return [
     Math.max(0, Math.min(1, x / canvasWidth)),

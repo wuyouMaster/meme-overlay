@@ -250,15 +250,29 @@ fn generate_path_hash(points: &[[f32; 2]]) -> String {
 }
 
 fn detect_closed_path(points: &[[f32; 2]]) -> bool {
-    if points.len() < 3 {
+    if points.len() < 4 {
         return false;
     }
+
     let first = points[0];
     let last = points[points.len() - 1];
     let dx = first[0] - last[0];
     let dy = first[1] - last[1];
-    let distance = (dx * dx + dy * dy).sqrt();
-    distance < 0.05
+    let gap = (dx * dx + dy * dy).sqrt();
+
+    // Compute total arc length so the threshold scales with path size.
+    // Mirrors the TS detectClosedPath: max(CLOSED_ABSOLUTE, length × CLOSED_RELATIVE)
+    let total_length: f32 = points
+        .windows(2)
+        .map(|w| {
+            let dx = w[1][0] - w[0][0];
+            let dy = w[1][1] - w[0][1];
+            (dx * dx + dy * dy).sqrt()
+        })
+        .sum();
+
+    let threshold = (total_length * 0.05_f32).max(0.04_f32);
+    gap < threshold
 }
 
 fn write_path_binary(path: &PathBuf, points: &[[f32; 2]], is_closed: bool) -> Result<(), String> {
