@@ -1179,6 +1179,152 @@ body {
 }
 
 /* ============================================
+   Custom Path Styles
+   ============================================ */
+
+.custom-path-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.custom-path-label {
+  font-size: 11px;
+  color: #98989d;
+}
+
+.custom-path-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.custom-path-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.custom-path-btn.edit {
+  background: rgba(10, 132, 255, 0.2);
+  color: #64d2ff;
+}
+
+.custom-path-btn.edit:hover {
+  background: rgba(10, 132, 255, 0.3);
+}
+
+.custom-path-btn.delete {
+  background: rgba(255, 69, 58, 0.15);
+  color: #ff453a;
+}
+
+.custom-path-btn.delete:hover {
+  background: rgba(255, 69, 58, 0.25);
+}
+
+/* Path Canvas Modal */
+.path-canvas-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.path-canvas-container {
+  background: #2d2d2d;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+}
+
+.path-canvas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.path-canvas-info {
+  font-size: 11px;
+  font-weight: 400;
+  color: #98989d;
+}
+
+.path-canvas {
+  display: block;
+  border-radius: 8px;
+  cursor: crosshair;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.path-canvas-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  justify-content: flex-end;
+}
+
+.path-canvas-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.path-canvas-btn.clear {
+  background: rgba(255, 255, 255, 0.08);
+  color: #98989d;
+}
+
+.path-canvas-btn.clear:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.path-canvas-btn.save {
+  background: #0a84ff;
+  color: #ffffff;
+}
+
+.path-canvas-btn.save:hover {
+  background: #409cff;
+}
+
+.path-canvas-btn.save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.path-canvas-btn.cancel {
+  background: rgba(255, 255, 255, 0.08);
+  color: #98989d;
+}
+
+.path-canvas-btn.cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+/* ============================================
    Custom Scrollbar (macOS style)
    ============================================ */
 

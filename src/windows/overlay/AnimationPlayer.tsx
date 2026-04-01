@@ -20,6 +20,12 @@ export function AnimationPlayer({ name }: Props) {
   const [movUrl, setMovUrl] = useState<string | null>(null);
   const [webmUrl, setWebmUrl] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const logDebug = (message: string) => {
+    void invoke("append_debug_log", {
+      source: "animation-player",
+      message,
+    }).catch(() => {});
+  };
 
   useEffect(() => {
     animRef.current?.destroy();
@@ -44,6 +50,7 @@ export function AnimationPlayer({ name }: Props) {
     invoke<AnimationEntry>("get_animation_by_name", { name })
       .then((entry) => {
         animRef.current?.destroy();
+        logDebug(`effect: resolved animation entry name=${entry.name} type=${entry.anim_type} path=${entry.path}`);
 
         if (entry.anim_type === "image") {
           invoke<number[]>("read_binary_file", { path: entry.path })
@@ -59,9 +66,10 @@ export function AnimationPlayer({ name }: Props) {
               const mime = mimeMap[ext] || "image/png";
               const blob = new Blob([new Uint8Array(bytes)], { type: mime });
               setImageUrl(URL.createObjectURL(blob));
+              logDebug(`effect: image loaded bytes=${bytes.length}`);
             })
             .catch((e) => {
-              console.error("Image load failed:", e);
+              logDebug(`effect: image load failed error=${String(e)}`);
               if (!containerRef.current) return;
               animRef.current = lottie.loadAnimation({
                 container: containerRef.current,
@@ -70,15 +78,17 @@ export function AnimationPlayer({ name }: Props) {
                 autoplay: true,
                 animationData: defaultSpinner,
               });
+              logDebug("effect: fallback to default spinner after image load failure");
             });
         } else if (entry.anim_type === "gif") {
           invoke<number[]>("read_binary_file", { path: entry.path })
             .then((bytes) => {
               const blob = new Blob([new Uint8Array(bytes)], { type: "image/gif" });
               setGifUrl(URL.createObjectURL(blob));
+              logDebug(`effect: gif loaded bytes=${bytes.length}`);
             })
             .catch((e) => {
-              console.error("GIF load failed:", e);
+              logDebug(`effect: gif load failed error=${String(e)}`);
               if (!containerRef.current) return;
               animRef.current = lottie.loadAnimation({
                 container: containerRef.current,
@@ -87,6 +97,7 @@ export function AnimationPlayer({ name }: Props) {
                 autoplay: true,
                 animationData: defaultSpinner,
               });
+              logDebug("effect: fallback to default spinner after gif load failure");
             });
         } else if (entry.anim_type === "video") {
           const webmPath = entry.path.endsWith(".webm")
@@ -108,7 +119,7 @@ export function AnimationPlayer({ name }: Props) {
             const webm = webmResult.status === "fulfilled" ? webmResult.value : null;
 
             if (!mov && !webm) {
-              console.error("Both video sources failed");
+              logDebug("effect: both video sources failed");
               if (!containerRef.current) return;
               animRef.current = lottie.loadAnimation({
                 container: containerRef.current,
@@ -117,10 +128,12 @@ export function AnimationPlayer({ name }: Props) {
                 autoplay: true,
                 animationData: defaultSpinner,
               });
+              logDebug("effect: fallback to default spinner after video load failure");
               return;
             }
             setMovUrl(mov);
             setWebmUrl(webm);
+            logDebug(`effect: video sources loaded mov=${mov ? "yes" : "no"} webm=${webm ? "yes" : "no"}`);
           });
         } else {
           invoke<number[]>("read_binary_file", { path: entry.path })
@@ -135,9 +148,10 @@ export function AnimationPlayer({ name }: Props) {
                 autoplay: true,
                 animationData: JSON.parse(text),
               });
+              logDebug(`effect: lottie loaded bytes=${bytes.length}`);
             })
             .catch((e) => {
-              console.error("Lottie file read failed:", e);
+              logDebug(`effect: lottie load failed error=${String(e)}`);
               if (!containerRef.current) return;
               animRef.current = lottie.loadAnimation({
                 container: containerRef.current,
@@ -146,11 +160,12 @@ export function AnimationPlayer({ name }: Props) {
                 autoplay: true,
                 animationData: defaultSpinner,
               });
+              logDebug("effect: fallback to default spinner after lottie load failure");
             });
         }
       })
       .catch((e) => {
-        console.error("get_animation_by_name failed:", e);
+        logDebug(`effect: get_animation_by_name failed error=${String(e)}`);
         if (!containerRef.current) return;
         animRef.current = lottie.loadAnimation({
           container: containerRef.current,
@@ -159,6 +174,7 @@ export function AnimationPlayer({ name }: Props) {
           autoplay: true,
           animationData: defaultSpinner,
         });
+        logDebug("effect: fallback to default spinner after get_animation_by_name failure");
       });
 
     return () => {

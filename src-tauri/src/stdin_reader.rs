@@ -1,3 +1,4 @@
+use crate::commands::append_debug_log_line;
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader};
 use tauri::{Emitter, Manager};
@@ -30,11 +31,17 @@ pub fn listen(handle: tauri::AppHandle) {
         }
 
         let Ok(parsed) = serde_json::from_str::<PluginMessage>(msg) else {
+            let _ = append_debug_log_line("stdin_reader", &format!("Failed to parse: {msg}"));
             continue;
         };
 
+        let _ = append_debug_log_line("stdin_reader", &format!("Received: {:?}", parsed));
+
         if let Some(win) = handle.get_webview_window("overlay") {
+            let _ = append_debug_log_line("stdin_reader", "Emitting plugin-message to overlay window");
             let _ = win.emit("plugin-message", &parsed);
+        } else {
+            let _ = append_debug_log_line("stdin_reader", "Overlay window not found");
         }
     }
 

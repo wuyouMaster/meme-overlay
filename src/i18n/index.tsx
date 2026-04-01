@@ -74,10 +74,15 @@ const translations: Translations = {
   "hooks.movementNone": { en: "None (Fixed)", zh: "无（固定）" },
   "hooks.movementHorizontal": { en: "Horizontal", zh: "水平" },
   "hooks.movementVertical": { en: "Vertical", zh: "垂直" },
+  "hooks.movementCustom": { en: "Custom Path", zh: "自定义轨迹" },
   "hooks.movementSpeed": { en: "Movement Speed", zh: "运动速度" },
   "hooks.speedSlow": { en: "Slow", zh: "慢" },
   "hooks.speedFast": { en: "Fast", zh: "快" },
   "hooks.advanced": { en: "Advanced", zh: "高级配置" },
+  "hooks.customPathSaved": { en: "Custom path saved", zh: "自定义轨迹已保存" },
+  "hooks.customPathNotSet": { en: "No custom path set", zh: "未设置自定义轨迹" },
+  "hooks.editPath": { en: "Edit Path", zh: "编辑轨迹" },
+  "hooks.deletePath": { en: "Delete", zh: "删除" },
 
   // Hook Categories
   "hooks.category.session": { en: "Session Hooks", zh: "会话钩子" },

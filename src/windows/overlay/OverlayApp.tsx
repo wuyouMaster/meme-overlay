@@ -19,13 +19,17 @@ type OverlayState = {
 };
 
 type MovementState = {
-  direction: "horizontal" | "vertical" | "none";
+  direction: "horizontal" | "vertical" | "none" | "custom";
   speed: number;
   initialX: number;
   initialY: number;
   currentX: number;
   currentY: number;
   moving: boolean;
+  customPath?: [number, number][];
+  pathIndex?: number;
+  pathDirection?: number;
+  isClosed?: boolean;
 };
 
 const WIN_W = 320;
@@ -57,6 +61,12 @@ export function OverlayApp() {
     animationName: "",
     progressText: "",
   });
+  const logDebug = (message: string) => {
+    void invoke("append_debug_log", {
+      source: "overlay",
+      message,
+    }).catch(() => {});
+  };
   // Track whether the window has been given an initial random position.
   // After the first show, subsequent shows (from different hooks) reuse the
   // current position so the window doesn't jump around. If the user drags the
@@ -75,40 +85,84 @@ export function OverlayApp() {
     currentX: 0,
     currentY: 0,
     moving: false,
+    customPath: undefined,
+    pathIndex: 0,
+    pathDirection: 1,
+    isClosed: false,
   });
   const animationFrameRef = useRef<number | null>(null);
+  const customPathSampleLogRef = useRef(0);
 
   // Load movement direction from hook config
   const loadMovementConfig = async (hookId?: string) => {
     try {
       if (!hookId) {
+        logDebug("loadMovementConfig: no hook_id, reset movement to none");
         movementStateRef.current.direction = "none";
         movementStateRef.current.speed = DEFAULT_SPEED;
+        movementStateRef.current.customPath = undefined;
         return;
       }
 
+      logDebug(`loadMovementConfig: start hook=${hookId}`);
+
       const [opencodeConfig, ccConfig] = await Promise.all([
-        invoke<Record<string, { movement_direction?: string; movement_speed?: number }>>("get_hook_config", { client: "opencode" }),
-        invoke<Record<string, { movement_direction?: string; movement_speed?: number }>>("get_hook_config", { client: "cc" }),
+        invoke<Record<string, { movement_direction?: string; movement_speed?: number; custom_path_file?: string }>>("get_hook_config", { client: "opencode" }),
+        invoke<Record<string, { movement_direction?: string; movement_speed?: number; custom_path_file?: string }>>("get_hook_config", { client: "cc" }),
       ]);
 
       const hookAssignment = opencodeConfig[hookId] || ccConfig[hookId];
+      logDebug(`loadMovementConfig: hook=${hookId} assignment=${JSON.stringify(hookAssignment ?? null)}`);
       
       if (hookAssignment?.movement_direction != null) {
-        movementStateRef.current.direction = hookAssignment.movement_direction as "horizontal" | "vertical" | "none";
+        movementStateRef.current.direction = hookAssignment.movement_direction as "horizontal" | "vertical" | "none" | "custom";
+        
+        if (hookAssignment.movement_direction === "custom" && hookAssignment.custom_path_file) {
+          try {
+            const path = await invoke<[number, number][]>("load_custom_path", {
+              fileName: hookAssignment.custom_path_file,
+            });
+            movementStateRef.current.customPath = path;
+            movementStateRef.current.pathIndex = 0;
+            movementStateRef.current.pathDirection = 1;
+            movementStateRef.current.isClosed = path.length > 2 && 
+              Math.abs(path[0][0] - path[path.length - 1][0]) < 0.05 &&
+              Math.abs(path[0][1] - path[path.length - 1][1]) < 0.05;
+            logDebug(
+              `loadMovementConfig: loaded custom path hook=${hookId} points=${path.length} closed=${movementStateRef.current.isClosed ? "true" : "false"}`
+            );
+          } catch (e) {
+            movementStateRef.current.customPath = undefined;
+            movementStateRef.current.direction = "none";
+            logDebug(`loadMovementConfig: custom path load failed hook=${hookId} error=${String(e)}`);
+          }
+        } else {
+          movementStateRef.current.customPath = undefined;
+          logDebug(`loadMovementConfig: hook=${hookId} direction=${hookAssignment.movement_direction} no custom path`);
+        }
+
+        if (hookAssignment.movement_speed != null && 
+            hookAssignment.movement_speed >= 1 && 
+            hookAssignment.movement_speed <= 8) {
+          movementStateRef.current.speed = hookAssignment.movement_speed;
+        } else {
+          movementStateRef.current.speed = DEFAULT_SPEED;
+        }
+        logDebug(
+          `loadMovementConfig: applied hook=${hookId} direction=${movementStateRef.current.direction} speed=${movementStateRef.current.speed}`
+        );
       }
-      
-      if (hookAssignment?.movement_speed != null && 
-          hookAssignment.movement_speed >= 1 && 
-          hookAssignment.movement_speed <= 8) {
-        movementStateRef.current.speed = hookAssignment.movement_speed;
-      } else {
-        movementStateRef.current.speed = DEFAULT_SPEED;
+      // If this hook has no movement config at all, preserve the current
+      // movement state (direction, path, speed) so any ongoing animation
+      // (e.g. custom path from session.created) continues uninterrupted.
+      if (hookAssignment?.movement_direction == null) {
+        logDebug(`loadMovementConfig: hook=${hookId} has no movement config`);
       }
     } catch (e) {
-      console.error("[OverlayApp] failed to load movement config:", e);
       movementStateRef.current.direction = "none";
       movementStateRef.current.speed = DEFAULT_SPEED;
+      movementStateRef.current.customPath = undefined;
+      logDebug(`loadMovementConfig: failed hook=${hookId ?? "none"} error=${String(e)}`);
     }
   };
 
@@ -116,17 +170,16 @@ export function OverlayApp() {
   const startMovement = async () => {
     // Guard against concurrent calls and frozen state.
     // Both checks must happen synchronously before any await.
-    if (movementStateRef.current.moving) {
-      return;
-    }
-    if (movementFrozenRef.current) {
-      return;
-    }
+    if (movementStateRef.current.moving) return;
+    if (movementFrozenRef.current) return;
     movementStateRef.current.moving = true;
+    customPathSampleLogRef.current = 0;
+    logDebug(`startMovement: begin direction=${movementStateRef.current.direction} speed=${movementStateRef.current.speed}`);
 
     const monitor = await currentMonitor();
     if (!monitor) {
       movementStateRef.current.moving = false;
+      logDebug("startMovement: currentMonitor returned null");
       return;
     }
 
@@ -139,8 +192,78 @@ export function OverlayApp() {
     const maxY = Math.max(0, height - winHPx - MARGIN * scale);
 
     const movement = movementStateRef.current;
-
     const win = getCurrentWindow();
+
+    // Custom path movement
+    if (movement.direction === "custom" && movement.customPath && movement.customPath.length >= 2) {
+      let lastFrameTime = 0;
+      // Speed 1-8: control how fast we traverse the path
+      // Lower speed = slower movement (more ms per point)
+      const msPerPoint = 200 / movement.speed; // Speed 4 = 50ms per point (20 points/sec)
+      logDebug(
+        `startMovement: entering custom path branch points=${movement.customPath.length} msPerPoint=${msPerPoint}`
+      );
+
+      const animateCustomPath = (timestamp: number) => {
+        if (!movement.moving || !movement.customPath || movement.pathIndex === undefined) {
+          return;
+        }
+
+        // Control speed by frame interval
+        if (timestamp - lastFrameTime < msPerPoint) {
+          animationFrameRef.current = requestAnimationFrame(animateCustomPath);
+          return;
+        }
+        lastFrameTime = timestamp;
+
+        const point = movement.customPath[movement.pathIndex];
+        // Calculate pixel position: normalized (0-1) to screen pixels
+        // Ensure window stays within screen bounds
+        const maxXPx = width - winWPx;
+        const maxYPx = height - winHPx;
+        const pixelX = Math.round(
+          monitor.position.x + Math.max(0, Math.min(maxXPx, point[0] * maxXPx))
+        );
+        const pixelY = Math.round(
+          monitor.position.y + Math.max(0, Math.min(maxYPx, point[1] * maxYPx))
+        );
+
+        if (customPathSampleLogRef.current < 3) {
+          customPathSampleLogRef.current += 1;
+          logDebug(
+            `animateCustomPath: sample index=${movement.pathIndex} point=[${point[0].toFixed(3)},${point[1].toFixed(3)}] pixel=[${pixelX},${pixelY}]`
+          );
+        }
+
+        movement.currentX = pixelX;
+        movement.currentY = pixelY;
+        void win.setPosition(new PhysicalPosition(pixelX, pixelY)).catch((e) => {
+          logDebug(`animateCustomPath: setPosition failed error=${String(e)}`);
+        });
+
+        const nextIndex = movement.pathIndex + (movement.pathDirection || 1);
+
+        if (nextIndex >= movement.customPath.length || nextIndex < 0) {
+          if (movement.isClosed) {
+            movement.pathIndex = 0;
+          } else {
+            movement.pathDirection = (movement.pathDirection || 1) * -1;
+            movement.pathIndex += movement.pathDirection;
+          }
+        } else {
+          movement.pathIndex = nextIndex;
+        }
+
+        animationFrameRef.current = requestAnimationFrame(animateCustomPath);
+      };
+
+      animationFrameRef.current = requestAnimationFrame(animateCustomPath);
+      return;
+    }
+
+    logDebug(`startMovement: entering linear branch direction=${movement.direction}`);
+
+    // Linear movement (horizontal/vertical)
     const animate = () => {
       if (!movement.moving) return;
 
@@ -188,10 +311,12 @@ export function OverlayApp() {
       switch (payload.type) {
         case "show":
           setState((s) => ({ ...s, visible: true }));
+          logDebug(`show: visible=true hook=${payload.hook_id ?? "none"} stop=${payload.stop_movement ? "true" : "false"}`);
 
           if (payload.stop_movement) {
             stopMovement();
             win.show();
+            logDebug("show: stop_movement=true, showing window without starting movement");
             break;
           }
 
@@ -202,22 +327,54 @@ export function OverlayApp() {
 
           // Load movement configuration for this hook
           await loadMovementConfig(payload.hook_id);
-          
+
           // If direction is "none" and we're currently moving, stop movement
           if (movementStateRef.current.direction === "none" && movementStateRef.current.moving) {
             stopMovement();
             win.show();
+            logDebug("show: direction became none while moving, window shown and movement stopped");
             break;
           }
           
           if (!hasPositionedRef.current) {
+            // For custom path, use first path point instead of random position
+            if (movementStateRef.current.direction === "custom" && 
+                movementStateRef.current.customPath && 
+                movementStateRef.current.customPath.length >= 2) {
+              const monitor = await currentMonitor();
+              if (monitor) {
+                const { width, height } = monitor.size;
+                const scale = monitor.scaleFactor;
+                const winWPx = WIN_W * scale;
+                const winHPx = WIN_H * scale;
+                const firstPoint = movementStateRef.current.customPath[0];
+                const maxX = width - winWPx;
+                const maxY = height - winHPx;
+                const pixelX = Math.round(
+                  monitor.position.x + Math.max(0, Math.min(maxX, firstPoint[0] * maxX))
+                );
+                const pixelY = Math.round(
+                  monitor.position.y + Math.max(0, Math.min(maxY, firstPoint[1] * maxY))
+                );
+                await win.setPosition(new PhysicalPosition(pixelX, pixelY));
+                movementStateRef.current.initialX = pixelX;
+                movementStateRef.current.initialY = pixelY;
+                movementStateRef.current.currentX = pixelX;
+                movementStateRef.current.currentY = pixelY;
+                logDebug(`show: first custom-path position set to [${pixelX},${pixelY}]`);
+              }
+            } else {
+              const pos = await moveToRandomPosition();
+              movementStateRef.current.initialX = pos.x;
+              movementStateRef.current.initialY = pos.y;
+              movementStateRef.current.currentX = pos.x;
+              movementStateRef.current.currentY = pos.y;
+              logDebug(`show: random initial position set to [${pos.x},${pos.y}]`);
+            }
             hasPositionedRef.current = true;
-            const pos = await moveToRandomPosition();
-            movementStateRef.current.initialX = pos.x;
-            movementStateRef.current.initialY = pos.y;
-            movementStateRef.current.currentX = pos.x;
-            movementStateRef.current.currentY = pos.y;
+            
             win.show();
+            logDebug(`show: window shown, hasPositioned=${hasPositionedRef.current ? "true" : "false"}`);
             
             // Start movement if direction is not "none"
             if (movementStateRef.current.direction !== "none") {
@@ -225,6 +382,7 @@ export function OverlayApp() {
             }
           } else {
             win.show();
+            logDebug("show: window shown using existing position");
             
             // Resume movement if direction is not "none"
             if (movementStateRef.current.direction !== "none" && !movementStateRef.current.moving) {
@@ -236,9 +394,11 @@ export function OverlayApp() {
           setState((s) => ({ ...s, visible: false, progressText: "" }));
           stopMovement();
           win.hide();
+          logDebug("hide: visible=false and window hidden");
           break;
         case "animation":
           setState((s) => ({ ...s, animationName: payload.name }));
+          logDebug(`animation: name=${payload.name}`);
           break;
         case "progress":
           setState((s) => ({ ...s, progressText: payload.text }));

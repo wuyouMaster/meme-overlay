@@ -135,6 +135,14 @@ fn main() {
             // Legacy phase commands
             commands::assign_phase,
             commands::unassign_phase,
+            // Custom path commands
+            commands::save_custom_path,
+            commands::load_custom_path,
+            commands::delete_custom_path,
+            commands::is_closed_path,
+            // Debug log commands
+            commands::append_debug_log,
+            commands::clear_debug_log,
             // Settings commands
             commands::set_sort_by,
             commands::set_filter_type,

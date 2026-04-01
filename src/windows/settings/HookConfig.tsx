@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../../i18n";
+import { PathCanvas } from "../../components/PathCanvas";
+import { Point } from "../../utils/pathOptimizer";
 
 type Client = "opencode" | "cc";
 
@@ -17,6 +19,7 @@ type HookAssignment = {
   custom_text?: string;
   movement_direction?: string;
   movement_speed?: number;
+  custom_path_file?: string;
 };
 
 type AnimationEntry = {
@@ -60,6 +63,8 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
   const [hookConfig, setHookConfig] = useState<Record<string, HookAssignment>>({});
   const [loading, setLoading] = useState(true);
   const [expandedAdvanced, setExpandedAdvanced] = useState<Record<string, boolean>>({});
+  const [editingPath, setEditingPath] = useState<string | null>(null);
+  const [currentPath, setCurrentPath] = useState<Point[]>([]);
 
   const loadHookData = async () => {
     try {
@@ -164,6 +169,73 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
     }));
   };
 
+  const handleEditPath = async (hookId: string) => {
+    const assignment = hookConfig[hookId];
+    if (assignment?.custom_path_file) {
+      try {
+        const points = await invoke<[number, number][]>("load_custom_path", {
+          fileName: assignment.custom_path_file,
+        });
+        setCurrentPath(points.map((p) => [p[0], p[1]] as Point));
+      } catch {
+        setCurrentPath([]);
+      }
+    } else {
+      setCurrentPath([]);
+    }
+    setEditingPath(hookId);
+  };
+
+  const handleSavePath = async () => {
+    if (!editingPath || currentPath.length < 2) return;
+
+    try {
+      const fileName = await invoke<string>("save_custom_path", {
+        client,
+        hookId: editingPath,
+        path: currentPath,
+      });
+      setHookConfig((prev) => ({
+        ...prev,
+        [editingPath]: {
+          ...prev[editingPath],
+          movement_direction: "custom",
+          custom_path_file: fileName,
+        },
+      }));
+      setEditingPath(null);
+      setCurrentPath([]);
+    } catch (e) {
+      console.error("Failed to save path:", e);
+    }
+  };
+
+  const handleCancelPath = () => {
+    setEditingPath(null);
+    setCurrentPath([]);
+  };
+
+  const handleDeletePath = async (hookId: string) => {
+    const assignment = hookConfig[hookId];
+    if (!assignment?.custom_path_file) return;
+
+    try {
+      await invoke("delete_custom_path", {
+        fileName: assignment.custom_path_file,
+      });
+      setHookConfig((prev) => ({
+        ...prev,
+        [hookId]: {
+          ...prev[hookId],
+          movement_direction: "none",
+          custom_path_file: undefined,
+        },
+      }));
+    } catch (e) {
+      console.error("Failed to delete path:", e);
+    }
+  };
+
   if (loading) {
     return <div className="hook-config-loading">{t("hooks.loading")}</div>;
   }
@@ -259,15 +331,44 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
                               <label>{t("hooks.movementDirection")}</label>
                               <select
                                 value={assignment.movement_direction ?? ""}
-                                onChange={(e) =>
-                                  handleMovementDirectionChange(hook.id, e.target.value || "")
-                                }
+                                onChange={(e) => {
+                                  if (e.target.value === "custom") {
+                                    handleEditPath(hook.id);
+                                  } else {
+                                    handleMovementDirectionChange(hook.id, e.target.value || "");
+                                  }
+                                }}
                               >
                                 <option value="">{t("hooks.movementNone")}</option>
                                 <option value="horizontal">{t("hooks.movementHorizontal")}</option>
                                 <option value="vertical">{t("hooks.movementVertical")}</option>
+                                <option value="custom">{t("hooks.movementCustom")}</option>
                               </select>
                             </div>
+
+                            {assignment.movement_direction === "custom" && (
+                              <div className="custom-path-info">
+                                <span className="custom-path-label">
+                                  {assignment.custom_path_file ? t("hooks.customPathSaved") : t("hooks.customPathNotSet")}
+                                </span>
+                                <div className="custom-path-actions">
+                                  <button
+                                    className="custom-path-btn edit"
+                                    onClick={() => handleEditPath(hook.id)}
+                                  >
+                                    {t("hooks.editPath")}
+                                  </button>
+                                  {assignment.custom_path_file && (
+                                    <button
+                                      className="custom-path-btn delete"
+                                      onClick={() => handleDeletePath(hook.id)}
+                                    >
+                                      {t("hooks.deletePath")}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
 
                             {(assignment.movement_direction === "horizontal" || assignment.movement_direction === "vertical") && (
                               <div className="hook-control">
@@ -300,6 +401,19 @@ export function HookConfig({ client, animations, onRefresh }: Props) {
           );
         })}
       </div>
+
+      {editingPath && (
+        <div className="path-canvas-modal">
+          <PathCanvas
+            width={400}
+            height={225}
+            value={currentPath}
+            onChange={setCurrentPath}
+            onSave={handleSavePath}
+            onCancel={handleCancelPath}
+          />
+        </div>
+      )}
     </div>
   );
 }

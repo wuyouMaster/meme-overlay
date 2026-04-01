@@ -2,7 +2,10 @@ use crate::bookmark;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // ---- Types ----
 
@@ -35,6 +38,8 @@ pub struct HookAssignment {
     pub movement_direction: Option<String>,
     #[serde(default)]
     pub movement_speed: Option<u32>,
+    #[serde(default)]
+    pub custom_path_file: Option<String>,
 }
 
 /// Per-client config (opencode or cc)
@@ -79,6 +84,53 @@ fn animations_dir() -> PathBuf {
     let dir = config_dir().join("animations");
     let _ = fs::create_dir_all(&dir);
     dir
+}
+
+fn paths_dir() -> PathBuf {
+    let dir = config_dir().join("paths");
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+fn logs_dir() -> PathBuf {
+    let dir = config_dir().join("logs");
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+fn debug_log_path() -> PathBuf {
+    logs_dir().join("overlay-debug.log")
+}
+
+fn log_timestamp() -> String {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    format!("{}.{}", now.as_secs(), format!("{:03}", now.subsec_millis()))
+}
+
+pub fn append_debug_log_line(source: &str, message: &str) -> Result<(), String> {
+    let path = debug_log_path();
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| format!("Open log failed: {e}"))?;
+    writeln!(file, "[{}] [{}] {}", log_timestamp(), source, message)
+        .map_err(|e| format!("Write log failed: {e}"))
+}
+
+#[tauri::command]
+pub fn append_debug_log(source: String, message: String) -> Result<String, String> {
+    append_debug_log_line(&source, &message)?;
+    Ok(debug_log_path().to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn clear_debug_log() -> Result<String, String> {
+    let path = debug_log_path();
+    fs::write(&path, "").map_err(|e| format!("Clear log failed: {e}"))?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 fn config_path() -> PathBuf {
@@ -177,6 +229,107 @@ fn get_anim_type(ext: &str) -> &'static str {
         "png" | "jpg" | "jpeg" | "webp" | "svg" => "image",
         _ => "",
     }
+}
+
+// ---- Path helpers ----
+
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::io::Read;
+
+const PATH_MAGIC: u32 = 0x48544150; // "HTAP" in little-endian (what we see in hexdump)
+const PATH_VERSION: u8 = 0x01;
+
+fn generate_path_hash(points: &[[f32; 2]]) -> String {
+    let mut hasher = DefaultHasher::new();
+    for point in points {
+        point[0].to_bits().hash(&mut hasher);
+        point[1].to_bits().hash(&mut hasher);
+    }
+    format!("{:016x}.bin", hasher.finish())
+}
+
+fn detect_closed_path(points: &[[f32; 2]]) -> bool {
+    if points.len() < 3 {
+        return false;
+    }
+    let first = points[0];
+    let last = points[points.len() - 1];
+    let dx = first[0] - last[0];
+    let dy = first[1] - last[1];
+    let distance = (dx * dx + dy * dy).sqrt();
+    distance < 0.05
+}
+
+fn write_path_binary(path: &PathBuf, points: &[[f32; 2]], is_closed: bool) -> Result<(), String> {
+    let mut file = fs::File::create(path).map_err(|e| format!("Create failed: {e}"))?;
+
+    file.write_all(&PATH_MAGIC.to_le_bytes())
+        .map_err(|e| format!("Write failed: {e}"))?;
+    file.write_all(&[PATH_VERSION])
+        .map_err(|e| format!("Write failed: {e}"))?;
+
+    let flags: u8 = if is_closed { 0x01 } else { 0x00 };
+    file.write_all(&[flags])
+        .map_err(|e| format!("Write failed: {e}"))?;
+
+    let count = points.len() as u16;
+    file.write_all(&count.to_le_bytes())
+        .map_err(|e| format!("Write failed: {e}"))?;
+
+    for point in points {
+        file.write_all(&point[0].to_le_bytes())
+            .map_err(|e| format!("Write failed: {e}"))?;
+        file.write_all(&point[1].to_le_bytes())
+            .map_err(|e| format!("Write failed: {e}"))?;
+    }
+
+    Ok(())
+}
+
+fn read_path_binary(path: &PathBuf) -> Result<(Vec<[f32; 2]>, bool), String> {
+    let mut file = fs::File::open(path).map_err(|e| format!("Open failed: {e}"))?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)
+        .map_err(|e| format!("Read failed: {e}"))?;
+
+    if buf.len() < 8 {
+        return Err("Invalid path file: too small".into());
+    }
+
+    let magic = u32::from_le_bytes([buf[0], buf[1], buf[2], buf[3]]);
+    if magic != PATH_MAGIC {
+        return Err("Invalid path file: bad magic".into());
+    }
+
+    let flags = buf[5];
+    let is_closed = (flags & 0x01) != 0;
+
+    let count = u16::from_le_bytes([buf[6], buf[7]]) as usize;
+    let expected_size = 8 + count * 8;
+    if buf.len() < expected_size {
+        return Err("Invalid path file: truncated".into());
+    }
+
+    let mut points = Vec::with_capacity(count);
+    for i in 0..count {
+        let offset = 8 + i * 8;
+        let x = f32::from_le_bytes([
+            buf[offset],
+            buf[offset + 1],
+            buf[offset + 2],
+            buf[offset + 3],
+        ]);
+        let y = f32::from_le_bytes([
+            buf[offset + 4],
+            buf[offset + 5],
+            buf[offset + 6],
+            buf[offset + 7],
+        ]);
+        points.push([x, y]);
+    }
+
+    Ok((points, is_closed))
 }
 
 // ---- Hook definitions ----
@@ -379,7 +532,6 @@ pub fn import_animation(source_path: String) -> Result<AnimationEntry, String> {
             Some(bm)
         }
         Err(e) => {
-            eprintln!("[import] bookmark failed: {e}");
             None
         }
     };
@@ -736,4 +888,62 @@ pub fn unassign_phase(phase: String) -> Result<(), String> {
     config.opencode.assignments.remove(&phase);
     save_config(&config);
     Ok(())
+}
+
+// ---- Custom path commands ----
+
+#[tauri::command]
+pub fn save_custom_path(
+    client: String,
+    hook_id: String,
+    path: Vec<[f32; 2]>,
+) -> Result<String, String> {
+    for point in &path {
+        if point[0] < 0.0 || point[0] > 1.0 || point[1] < 0.0 || point[1] > 1.0 {
+            return Err("Path points must be in range 0~1".into());
+        }
+    }
+
+    let is_closed = detect_closed_path(&path);
+    let file_name = generate_path_hash(&path);
+
+    let paths_directory = paths_dir();
+    let file_path = paths_directory.join(&file_name);
+    write_path_binary(&file_path, &path, is_closed)?;
+
+    let mut config = load_config();
+    let client_cfg = get_client_mut(&mut config, &client)?;
+    let assignment = client_cfg.hook_assignments.entry(hook_id).or_default();
+    assignment.custom_path_file = Some(file_name.clone());
+    assignment.movement_direction = Some("custom".to_string());
+    save_config(&config);
+
+    Ok(file_name)
+}
+
+#[tauri::command]
+pub fn load_custom_path(file_name: String) -> Result<Vec<[f32; 2]>, String> {
+    let paths_directory = paths_dir();
+    let file_path = paths_directory.join(&file_name);
+    let (path, is_closed) = read_path_binary(&file_path)?;
+    let _ = is_closed;
+    Ok(path)
+}
+
+#[tauri::command]
+pub fn delete_custom_path(file_name: String) -> Result<(), String> {
+    let paths_directory = paths_dir();
+    let file_path = paths_directory.join(&file_name);
+    if file_path.exists() {
+        let _ = fs::remove_file(file_path);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn is_closed_path(file_name: String) -> Result<bool, String> {
+    let paths_directory = paths_dir();
+    let file_path = paths_directory.join(&file_name);
+    let (_path, is_closed) = read_path_binary(&file_path)?;
+    Ok(is_closed)
 }
